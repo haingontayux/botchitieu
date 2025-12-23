@@ -1,0 +1,7 @@
+{
+  "name": "FinBot AI - Smart Expense Tracker",
+  "description": "An intelligent expense tracker that uses Gemini AI to parse natural language input (simulating a Telegram Bot experience) into structured financial data, visualized on a modern dashboard.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
