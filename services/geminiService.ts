@@ -22,23 +22,23 @@ export interface BotResponse {
 }
 
 const generateSystemInstruction = (historyContext: string) => `
-You are FinBot, a professional Vietnamese financial assistant.
-Current Date: ${new Date().toLocaleDateString('vi-VN')}
+Bạn là FinBot, trợ lý quản lý tài chính thông minh. 
+Hôm nay là ngày: ${new Date().toLocaleDateString('vi-VN')}
 
-TASK: Extract transaction details from user input.
+NHIỆM VỤ: Trích xuất thông tin chi tiêu từ tin nhắn người dùng.
 
-RULES:
-1. Amount: "k"=000, "tr"=1,000,000.
-2. Categories: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
-3. Payment Method:
+QUY TẮC:
+1. Số tiền: "k" = nghìn, "tr" = triệu. (VD: 50k = 50000).
+2. Hình thức thanh toán:
    - "ck", "chuyển khoản", "banking" -> 'TRANSFER'
    - "thẻ", "card", "visa" -> 'CARD'
-   - Default or "tiền mặt" -> 'CASH'
+   - Mặc định hoặc "tiền mặt" -> 'CASH'
+3. Danh mục: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
 
-CONTEXT:
+DỮ LIỆU CŨ:
 ${historyContext}
 
-JSON OUTPUT:
+TRẢ VỀ JSON:
 {
   "transactions": [
     {
@@ -65,11 +65,11 @@ export const parseTransactionFromMultimodal = async (
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const parts: any[] = [];
 
-  const historyContext = transactionHistory.slice(-20).map(t => 
-    `- [${t.date}] ${t.description}: ${t.amount}`
+  const historyContext = transactionHistory.slice(-15).map(t => 
+    `- ${t.date}: ${t.description} ${formatCurrency(t.amount)}`
   ).join('\n');
 
-  if (input.text) parts.push({ text: input.text });
+  if (input.text) parts.push({ text: `YÊU CẦU: ${input.text}` });
   if (input.imageBase64) parts.push({ inlineData: { data: input.imageBase64, mimeType: input.mimeType || "image/jpeg" } });
   if (input.audioBase64) parts.push({ inlineData: { data: input.audioBase64, mimeType: input.mimeType || "audio/webm" } });
 
@@ -109,30 +109,28 @@ export const parseTransactionFromMultimodal = async (
     if (response.text) return JSON.parse(response.text) as BotResponse;
     return null;
   } catch (error) {
-    console.error(error);
+    console.error("Gemini Error:", error);
     return null;
   }
 };
 
 export const generateBotResponse = (data: ParsedTransactionData): string => {
-  let details = "";
-  if (data.location) details += ` 📍 ${data.location}`;
-  if (data.person) details += ` 👤 ${data.person}`;
-  if (data.paymentMethod === 'TRANSFER') details += ` 🏦 CK`;
-  if (data.paymentMethod === 'CARD') details += ` 💳 Thẻ`;
+  let method = "";
+  if (data.paymentMethod === 'TRANSFER') method = " (🏦 Chuyển khoản)";
+  if (data.paymentMethod === 'CARD') method = " (💳 Thẻ)";
   
-  return `✅ Ghi nhận: **${formatCurrency(data.amount)}** - _${data.description}_${details}`;
+  return `✅ Đã lưu: **${formatCurrency(data.amount)}** vào mục **${data.category}**\n📝 ${data.description}${method}`;
 };
 
 export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promise<string> => {
   if (!process.env.API_KEY) return "Vui lòng cấu hình API Key.";
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const recentTx = transactions.slice(-30).map(t => `${t.date}: ${t.description} - ${t.amount}`).join('\n');
-  const prompt = `Phân tích chi tiêu (tiếng Việt, ngắn gọn): \n${recentTx}`;
+  const recentTx = transactions.slice(-20).map(t => `${t.description}: ${t.amount}`).join(', ');
+  const prompt = `Dựa trên các giao dịch này, hãy đưa ra 1 lời khuyên tài chính cực ngắn gọn (1 câu): ${recentTx}`;
   try {
     const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt });
-    return response.text || "Chưa có dữ liệu.";
+    return response.text || "Chưa có nhận xét.";
   } catch (error) {
-    return "Lỗi kết nối AI.";
+    return "Lỗi phân tích.";
   }
 };
