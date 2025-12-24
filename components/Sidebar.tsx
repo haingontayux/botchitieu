@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface SidebarProps {
@@ -27,7 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
   return (
     <aside className="hidden md:flex flex-col w-72 bg-white/80 backdrop-blur-xl border-r border-slate-200 h-screen fixed left-0 top-0 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       <div className="p-8 pb-4 flex items-center space-x-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/30">
+        <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/30">
           F
         </div>
         <div>
@@ -43,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
             onClick={() => setCurrentTab(item.id)}
             className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
               currentTab === item.id
-                ? 'bg-indigo-50 text-indigo-600 shadow-sm font-semibold'
+                ? 'bg-brand-50 text-brand-600 shadow-sm font-semibold'
                 : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
@@ -54,15 +55,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
           </button>
         ))}
       </nav>
-
+      
       <div className="p-4 mx-4 mb-6">
-        <div className="bg-slate-900 rounded-2xl p-5 text-white relative overflow-hidden shadow-xl shadow-slate-900/20">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
-          <p className="text-xs text-slate-400 mb-2 uppercase tracking-wider font-semibold">Tình trạng</p>
-          <div className="flex items-center justify-between">
-            <p className="font-bold text-lg">Dữ liệu Local</p>
-            <span className="w-2 h-2 bg-green-400 rounded-full shadow-[0_0_8px_rgba(74,222,128,0.6)]"></span>
-          </div>
+        <div className="bg-slate-900 rounded-2xl p-5 text-white relative overflow-hidden shadow-xl">
+           <p className="text-xs text-slate-400 font-bold uppercase">Trạng thái</p>
+           <p className="font-bold">{navigator.onLine ? 'Online 🟢' : 'Offline 🔴'}</p>
         </div>
       </div>
     </aside>

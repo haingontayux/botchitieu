@@ -4,6 +4,39 @@ const TRANSACTIONS_KEY = 'finbot_transactions';
 const CHAT_HISTORY_KEY = 'finbot_chat_history';
 const SETTINGS_KEY = 'finbot_settings';
 
+// --- Theme Helpers ---
+
+export const COLOR_MAP: Record<string, any> = {
+  indigo: { 
+    50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 
+    500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81' 
+  },
+  emerald: { 
+    50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 
+    500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' 
+  },
+  rose: { 
+    50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 
+    500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337' 
+  },
+  amber: { 
+    50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 
+    500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e', 900: '#78350f' 
+  },
+  blue: { 
+    50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 
+    500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' 
+  },
+};
+
+export const applyTheme = (themeColor: string) => {
+    const palette = COLOR_MAP[themeColor] || COLOR_MAP['indigo'];
+    const root = document.documentElement;
+    Object.keys(palette).forEach(key => {
+       root.style.setProperty(`--brand-${key}`, palette[key]);
+    });
+};
+
 // --- Local Storage Helpers ---
 
 export const getStoredTransactions = (): Transaction[] => {
@@ -62,7 +95,9 @@ export const getSettings = (): UserSettings => {
       appScriptUrl: parsed.appScriptUrl || '',
       telegramChatId: parsed.telegramChatId || '',
       notificationEnabled: parsed.notificationEnabled || false,
-      notificationTimes: times
+      notificationTimes: times,
+      geminiApiKey: parsed.geminiApiKey || '',
+      themeColor: parsed.themeColor || 'indigo'
     };
   } catch (error) {
     return { 
@@ -71,7 +106,9 @@ export const getSettings = (): UserSettings => {
         appScriptUrl: '', 
         telegramChatId: '', 
         notificationEnabled: false, 
-        notificationTimes: ['09:00', '12:00', '20:00'] 
+        notificationTimes: ['09:00', '12:00', '20:00'],
+        geminiApiKey: '',
+        themeColor: 'indigo'
     };
   }
 };
@@ -102,8 +139,9 @@ export const syncFromCloud = async (scriptUrl: string): Promise<Transaction[] | 
         category: item.category,
         type: item.type,
         status: item.status || 'CONFIRMED',
-        person: item.person || undefined, // Map new field
-        location: item.location || undefined // Map new field
+        person: item.person || undefined, 
+        location: item.location || undefined,
+        isSynced: true // Data from cloud is always synced
       }));
       
       saveTransactionsLocal(parsedData);
@@ -116,11 +154,12 @@ export const syncFromCloud = async (scriptUrl: string): Promise<Transaction[] | 
   }
 };
 
-export const syncToCloud = async (scriptUrl: string, transaction: Transaction, action: 'ADD' | 'DELETE' | 'UPDATE' = 'ADD') => {
-  if (!scriptUrl) return;
+// Modified to return boolean for success/fail
+export const syncToCloud = async (scriptUrl: string, transaction: Transaction, action: 'ADD' | 'DELETE' | 'UPDATE' = 'ADD'): Promise<boolean> => {
+  if (!scriptUrl) return false;
   
   try {
-    await fetch(scriptUrl, {
+    const res = await fetch(scriptUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8', 
@@ -130,8 +169,10 @@ export const syncToCloud = async (scriptUrl: string, transaction: Transaction, a
         data: transaction
       })
     });
+    return res.ok;
   } catch (error) {
     console.error("Cloud Sync Error (Write):", error);
+    return false;
   }
 };
 

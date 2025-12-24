@@ -1,5 +1,7 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { TransactionType, Transaction } from "../types";
+import { getSettings } from "./storageService";
 
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -21,6 +23,15 @@ export interface BotResponse {
   analysisAnswer: string | null;
 }
 
+// Helper to get API Key: Prioritize User Settings > Env Var
+const getApiKey = (): string | undefined => {
+    const settings = getSettings();
+    if (settings.geminiApiKey && settings.geminiApiKey.trim() !== '') {
+        return settings.geminiApiKey;
+    }
+    return process.env.API_KEY;
+};
+
 const generateSystemInstruction = (historyContext: string) => `
 Bạn là FinBot, trợ lý quản lý tài chính thông minh. 
 Hôm nay là ngày: ${new Date().toLocaleDateString('vi-VN')}
@@ -29,11 +40,11 @@ NHIỆM VỤ: Trích xuất thông tin chi tiêu từ tin nhắn người dùng.
 
 QUY TẮC:
 1. Số tiền: "k" = nghìn, "tr" = triệu. (VD: 50k = 50000).
-2. Hình thức thanh toán:
-   - "ck", "chuyển khoản", "banking" -> 'TRANSFER'
-   - "thẻ", "card", "visa" -> 'CARD'
-   - Mặc định hoặc "tiền mặt" -> 'CASH'
+2. Hình thức thanh toán: "ck"/"chuyển khoản" -> 'TRANSFER', "thẻ" -> 'CARD', còn lại 'CASH'.
 3. Danh mục: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
+4. TRÍCH XUẤT NGỮ CẢNH:
+   - "person": Chi cho ai? Ai đưa tiền? (VD: "cho mẹ", "lương của vợ", "con đóng học").
+   - "location": Ở đâu? Cửa hàng nào? (VD: "ở Highland", "tại Aeon Mall").
 
 DỮ LIỆU CŨ:
 ${historyContext}
@@ -60,9 +71,16 @@ export const parseTransactionFromMultimodal = async (
   input: { text?: string; imageBase64?: string; audioBase64?: string; mimeType?: string },
   transactionHistory: Transaction[] = []
 ): Promise<BotResponse | null> => {
-  if (!process.env.API_KEY) throw new Error("API Key not found");
+  const apiKey = getApiKey();
+  if (!apiKey) {
+      console.error("API Key not found. Please enter it in Settings.");
+      return { 
+          transactions: null, 
+          analysisAnswer: "⚠️ Vui lòng nhập **Google Gemini API Key** trong phần Cài đặt để sử dụng tính năng AI." 
+      };
+  }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const parts: any[] = [];
 
   const historyContext = transactionHistory.slice(-15).map(t => 
@@ -116,15 +134,22 @@ export const parseTransactionFromMultimodal = async (
 
 export const generateBotResponse = (data: ParsedTransactionData): string => {
   let method = "";
-  if (data.paymentMethod === 'TRANSFER') method = " (🏦 Chuyển khoản)";
+  if (data.paymentMethod === 'TRANSFER') method = " (🏦 CK)";
   if (data.paymentMethod === 'CARD') method = " (💳 Thẻ)";
   
-  return `✅ Đã lưu: **${formatCurrency(data.amount)}** vào mục **${data.category}**\n📝 ${data.description}${method}`;
+  const context = [];
+  if (data.person) context.push(`👤 ${data.person}`);
+  if (data.location) context.push(`📍 ${data.location}`);
+  const contextStr = context.length > 0 ? `\n${context.join(' • ')}` : '';
+
+  return `✅ Đã lưu: **${formatCurrency(data.amount)}**\n📂 ${data.category} • 📝 ${data.description}${method}${contextStr}`;
 };
 
 export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promise<string> => {
-  if (!process.env.API_KEY) return "Vui lòng cấu hình API Key.";
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getApiKey();
+  if (!apiKey) return "Vui lòng nhập API Key trong cài đặt.";
+
+  const ai = new GoogleGenAI({ apiKey });
   const recentTx = transactions.slice(-20).map(t => `${t.description}: ${t.amount}`).join(', ');
   const prompt = `Dựa trên các giao dịch này, hãy đưa ra 1 lời khuyên tài chính cực ngắn gọn (1 câu): ${recentTx}`;
   try {

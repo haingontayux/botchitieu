@@ -1,3 +1,4 @@
+
 export enum TransactionType {
   EXPENSE = 'EXPENSE',
   INCOME = 'INCOME'
@@ -40,6 +41,7 @@ export interface Transaction {
   person?: string;
   location?: string;
   paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD';
+  isSynced?: boolean; // New field for offline support
 }
 
 export interface ChatMessage {
@@ -59,6 +61,8 @@ export interface UserSettings {
   telegramChatId?: string;
   notificationEnabled?: boolean;
   notificationTimes?: string[];
+  geminiApiKey?: string;
+  themeColor?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'blue';
 }
 
 export interface DashboardStats {
