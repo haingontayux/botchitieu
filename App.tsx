@@ -8,7 +8,7 @@ import { Statistics } from './views/Statistics';
 import { Settings } from './views/Settings';
 import { Transaction, ChatMessage, UserSettings, TransactionType } from './types';
 import { getStoredTransactions, saveTransactionsLocal, getStoredChatHistory, saveChatHistory, getSettings, saveSettings, syncFromCloud, syncToCloud, sendTelegramNotification } from './services/storageService';
-import { parseTransactionFromMultimodal, formatCurrency } from './services/geminiService';
+import { parseTransactionFromMultimodal } from './services/geminiService';
 import { v4 as uuidv4 } from 'uuid';
 
 const App: React.FC = () => {
@@ -39,7 +39,7 @@ const App: React.FC = () => {
         .then(cloudData => {
           if (cloudData) {
             setTransactions(cloudData);
-            console.log("Initial cloud sync done");
+            console.log("Synced from cloud");
           }
         })
         .finally(() => setIsLoading(false));
@@ -49,31 +49,6 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-  // --- Auto Sync Polling (Every 30s) ---
-  useEffect(() => {
-    if (!settings.appScriptUrl) return;
-    
-    const pollCloud = () => {
-       syncFromCloud(settings.appScriptUrl!)
-        .then(cloudData => {
-           if (cloudData) {
-               // Simple diff check to update state
-               setTransactions(prev => {
-                   if (prev.length !== cloudData.length || JSON.stringify(prev) !== JSON.stringify(cloudData)) {
-                       console.log("Auto-sync: Data updated from cloud");
-                       return cloudData;
-                   }
-                   return prev;
-               });
-           }
-        })
-        .catch(err => console.error("Auto-sync failed", err));
-    };
-
-    const interval = setInterval(pollCloud, 30000); // 30 seconds
-    return () => clearInterval(interval);
-  }, [settings.appScriptUrl]);
 
   useEffect(() => {
     saveTransactionsLocal(transactions);
@@ -158,46 +133,27 @@ const App: React.FC = () => {
     }
   };
 
-  // --- CRITICAL FIX FOR HALLUCINATION ---
   const handleProcessPending = async (pendingTransaction: Transaction) => {
     setIsProcessingPendingId(pendingTransaction.id);
     try {
-      // FORCE EMPTY HISTORY: passing [] ensures AI has ZERO context of old data.
-      // It will only see: "USER_REQUEST: [description from telegram]"
-      const parsedData = await parseTransactionFromMultimodal(
-          { text: pendingTransaction.description }, 
-          [] // <--- THIS IS THE FIX. No history passed.
-      );
-      
+      const parsedData = await parseTransactionFromMultimodal({ text: pendingTransaction.description }, []);
       if (parsedData && parsedData.transactions && parsedData.transactions.length > 0) {
         const tData = parsedData.transactions[0];
-        
         const confirmedTransaction: Transaction = {
           ...pendingTransaction,
           amount: tData.amount,
           category: tData.category,
           date: tData.date || pendingTransaction.date,
-          description: tData.description || pendingTransaction.description,
+          description: tData.description,
           type: tData.type as TransactionType,
-          status: 'CONFIRMED',
-          person: tData.person,
-          location: tData.location
+          status: 'CONFIRMED'
         };
-
-        // Optimistic UI Update
         setTransactions(prev => prev.map(t => t.id === pendingTransaction.id ? confirmedTransaction : t));
-        
-        // Cloud Sync
         if (settings.appScriptUrl) {
           await syncToCloud(settings.appScriptUrl, confirmedTransaction, 'UPDATE');
-          
-          if (settings.telegramChatId) {
-             const message = `✅ Đã lưu: ${confirmedTransaction.description}\n💰 ${formatCurrency(confirmedTransaction.amount)} (${confirmedTransaction.category})`;
-             await sendTelegramNotification(settings.appScriptUrl, settings.telegramChatId, message);
-          }
         }
       } else {
-        alert("AI không hiểu nội dung này. Bạn vui lòng tự sửa bằng tay.");
+        alert("AI không thể phân tích nội dung này.");
       }
     } catch (e) {
       console.error(e);
@@ -207,9 +163,10 @@ const App: React.FC = () => {
     }
   };
 
+  // Callback from MobileNav when recording finishes
   const handleGlobalAudioCapture = (blob: Blob, mimeType: string) => {
       setPendingAudio({ blob, mimeType });
-      setCurrentTab('chat');
+      setCurrentTab('chat'); // Automatically switch to Chat tab
   };
 
   return (
@@ -275,12 +232,7 @@ const App: React.FC = () => {
                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Sổ giao dịch</h1>
                    <p className="text-slate-500 mt-1 font-medium">Quản lý và chỉnh sửa thu chi</p>
                  </div>
-                 <History 
-                   transactions={transactions} 
-                   onDelete={deleteTransaction} 
-                   onEdit={editTransaction} 
-                   onAdd={addTransactions} 
-                 />
+                 <History transactions={transactions} onDelete={deleteTransaction} onEdit={editTransaction} />
               </div>
             )}
 

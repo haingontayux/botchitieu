@@ -21,37 +21,37 @@ export interface BotResponse {
 }
 
 const generateSystemInstruction = (historyContext: string) => `
-SYSTEM_ROLE: You are FinBot, a precise data extraction engine.
+You are a smart financial assistant for a Vietnamese user. 
+CURRENT DATE: ${new Date().toLocaleDateString('vi-VN')} (${new Date().toISOString().split('T')[0]})
 
-*** TASK ***
-Extract financial transaction details from the USER_REQUEST.
+Your task is TWO-FOLD:
+1. RECORD TRANSACTIONS: Extract spending or income from user input. 
+   - CRITICAL: The user might say multiple items. Split them.
+   - Currency: "k" = 000. 
+   - Categories: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
+   
+   - EXTRACTION RULES (IMPORTANT):
+     1. **description**: The main item or action (e.g., "Ăn phở", "Mua áo thun", "Tiền ăn vặt").
+     2. **person**: Specific name of person involved (e.g., "Châu", "Nam", "Mẹ"). If generic like "bạn bè", ignore or keep brief.
+     3. **location**: Specific place/brand (e.g., "Quán Bà Hằng", "Vinmart", "Shopee").
 
-${historyContext ? `*** CONTEXT (Reference Only) ***\n${historyContext}\n` : ''}
+     Examples:
+     - Input: "Cho châu 10k tiền ăn vặt" 
+       -> description: "Tiền ăn vặt", person: "Châu", amount: 10000
+     - Input: "Ăn phở quán bà hằng với nam hết 30k" 
+       -> description: "Ăn phở", location: "Quán Bà Hằng", person: "Nam", amount: 30000
+     - Input: "Mua rau thịt ở vinmart" 
+       -> description: "Mua rau thịt", location: "Vinmart"
 
-*** RULES ***
-1. **Source of Truth**: Extract information ONLY from the "USER_REQUEST".
-2. **Amounts**: 
-   - "k" = 000 (e.g., 30k = 30000).
-   - "tr" = 1000000.
-   - If user says just "50", assume 50000 if context implies small purchase, or look for unit.
-3. **Category**: Map to: Ăn uống, Di chuyển, Mua sắm, Hóa đơn, Giải trí, Sức khỏe, Giáo dục, Lương, Đầu tư, Khác.
-4. **Dates**: Default to TODAY (YYYY-MM-DD) unless user says "Hôm qua" (Yesterday).
-5. **Silence**: If the input is just "hello" or invalid, return empty transactions.
+2. ANALYZE DATA: If user asks a question, return 'analysisAnswer'.
 
-*** OUTPUT JSON ***
+CONTEXT (Recent User Transactions):
+${historyContext}
+
+OUTPUT FORMAT (JSON):
 {
-  "transactions": [
-    { 
-      "amount": number, 
-      "category": "String", 
-      "description": "String", 
-      "date": "YYYY-MM-DD", 
-      "type": "EXPENSE" | "INCOME", 
-      "person": "String", 
-      "location": "String" 
-    }
-  ],
-  "analysisAnswer": null
+  "transactions": [ { ... } ] OR null,
+  "analysisAnswer": "String" OR null
 }
 `;
 
@@ -66,18 +66,12 @@ export const parseTransactionFromMultimodal = async (
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const parts: any[] = [];
 
-  // LOGIC CHANGE: If transactionHistory is empty, we strictly do NOT provide context tags.
-  // This isolates the AI to looking ONLY at the input text.
-  let historyContext = "";
-  if (transactionHistory.length > 0) {
-      historyContext = transactionHistory.slice(-10).map(t => 
-        `- ${t.date}: ${t.description} (${t.amount})`
-      ).join('\n');
-  }
+  // Context: Date, Desc, Amount, Cat, Person, Location
+  const historyContext = transactionHistory.slice(-100).map(t => 
+    `- [${t.date}] ${t.description} (${t.category}): ${t.amount} ${t.person ? `| Với: ${t.person}` : ''} ${t.location ? `| Tại: ${t.location}` : ''}`
+  ).join('\n');
 
-  if (input.text) {
-      parts.push({ text: `USER_REQUEST: ${input.text}` });
-  }
+  if (input.text) parts.push({ text: input.text });
 
   if (input.imageBase64) {
     parts.push({
@@ -86,7 +80,7 @@ export const parseTransactionFromMultimodal = async (
         mimeType: input.mimeType || "image/jpeg",
       },
     });
-    if (!input.text) parts.push({ text: "USER_REQUEST: Extract items from image." });
+    if (!input.text) parts.push({ text: "Analyze this image for expenses." });
   }
 
   if (input.audioBase64) {
@@ -96,7 +90,7 @@ export const parseTransactionFromMultimodal = async (
         mimeType: input.mimeType || "audio/webm",
       },
     });
-    if (!input.text) parts.push({ text: "USER_REQUEST: (Audio) Extract spoken transaction." });
+    if (!input.text) parts.push({ text: "Listen carefully. Split multiple items if spoken. Answer if it's a question." });
   }
 
   try {
@@ -105,7 +99,6 @@ export const parseTransactionFromMultimodal = async (
       contents: { parts },
       config: {
         systemInstruction: generateSystemInstruction(historyContext),
-        temperature: 0, // Absolute zero creativity
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -149,8 +142,7 @@ export const generateBotResponse = (data: ParsedTransactionData): string => {
   if (data.location) details += ` 📍 ${data.location}`;
   if (data.person) details += ` 👤 ${data.person}`;
   
-  const icon = data.type === TransactionType.INCOME ? '💰' : '💸';
-  return `${icon} **${data.category}**: ${formatCurrency(data.amount)}\n📝 _${data.description}_${details}`;
+  return `✅ Ghi nhận: **${formatCurrency(data.amount)}** - _${data.description}_${details} (${data.category})`;
 };
 
 export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promise<string> => {
@@ -158,15 +150,19 @@ export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promi
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const recentTx = transactions.slice(-50).map(t => 
-    `${t.date}: ${t.description} (${t.category}) - ${t.amount}`
+  const recentTx = transactions.slice(-60).map(t => 
+    `${t.date}: ${t.description} (${t.category}) - ${t.amount} ${t.person ? `[Với: ${t.person}]` : ''} ${t.location ? `[Tại: ${t.location}]` : ''}`
   ).join('\n');
 
   const prompt = `
-    Lịch sử giao dịch:
+    Dựa trên lịch sử giao dịch:
     ${recentTx}
-    
-    Nhận xét ngắn (1 câu) về chi tiêu:
+
+    Hãy đóng vai chuyên gia tài chính và phân tích SÂU (150 từ):
+    1. Nhận diện thói quen dựa trên NGƯỜI (Person) và ĐỊA ĐIỂM (Location). (Ví dụ: Hay ăn với ai? Hay mua sắm ở đâu?).
+    2. Chỉ ra xu hướng tiêu dùng (Tăng/giảm).
+    3. Lời khuyên cụ thể.
+    4. Giọng điệu vui vẻ, tiếng Việt.
   `;
 
   try {
@@ -174,8 +170,9 @@ export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promi
       model: "gemini-3-flash-preview",
       contents: prompt,
     });
-    return response.text || "Chưa có dữ liệu.";
+    return response.text || "Không thể phân tích lúc này.";
   } catch (error) {
-    return "Lỗi kết nối AI.";
+    console.error("Analysis Error:", error);
+    return "Lỗi kết nối khi phân tích.";
   }
 };

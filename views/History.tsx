@@ -1,13 +1,11 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Transaction, TransactionType, Category, CategoryIcons } from '../types';
 import { formatCurrency } from '../services/geminiService';
-import { v4 as uuidv4 } from 'uuid';
 
 interface HistoryProps {
   transactions: Transaction[];
   onDelete: (id: string) => void;
   onEdit: (transaction: Transaction) => void;
-  onAdd: (transaction: Transaction) => void;
 }
 
 // Separate Categories for Filtering Logic
@@ -151,7 +149,7 @@ const SwipeableTransactionRow: React.FC<{
   );
 };
 
-export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit, onAdd }) => {
+export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit }) => {
   const [filterType, setFilterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [filterDate, setFilterDate] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -159,18 +157,6 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
   const [visibleDaysCount, setVisibleDaysCount] = useState(7);
   
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  
-  // Adding State
-  const [isAdding, setIsAdding] = useState(false);
-  const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
-    type: TransactionType.EXPENSE,
-    category: Category.FOOD,
-    date: new Date().toISOString().split('T')[0],
-    amount: 0,
-    description: '',
-    person: '',
-    location: ''
-  });
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -247,43 +233,9 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
     const val = rawValue ? Number(rawValue) : 0;
     setEditingTransaction({ ...editingTransaction, amount: val });
   };
-  
-  const handleNewAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/,/g, '').replace(/\D/g, '');
-    const val = rawValue ? Number(rawValue) : 0;
-    setNewTransaction({ ...newTransaction, amount: val });
-  };
-
-  const handleSaveNew = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newTransaction.amount && newTransaction.description) {
-        const t: Transaction = {
-            id: uuidv4(),
-            amount: newTransaction.amount,
-            category: newTransaction.category || Category.OTHER,
-            description: newTransaction.description,
-            date: newTransaction.date || new Date().toISOString().split('T')[0],
-            type: newTransaction.type || TransactionType.EXPENSE,
-            status: 'CONFIRMED',
-            person: newTransaction.person,
-            location: newTransaction.location
-        };
-        onAdd(t);
-        setIsAdding(false);
-        setNewTransaction({
-            type: TransactionType.EXPENSE,
-            category: Category.FOOD,
-            date: new Date().toISOString().split('T')[0],
-            amount: 0,
-            description: '',
-            person: '',
-            location: ''
-        });
-    }
-  };
 
   return (
-    <div className="space-y-4 animate-fade-in pb-24 md:pb-0 relative min-h-screen">
+    <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
       
       {/* Filters Container */}
       <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-3 sticky top-0 z-20">
@@ -305,7 +257,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                     placeholder="Tìm theo người, địa điểm, nội dung..."
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
             </div>
           </div>
@@ -316,14 +268,14 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                       type="month" 
                       value={filterDate}
                       onChange={(e) => setFilterDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
               </div>
               <div className="flex-1">
                   <select
                       value={filterCategory}
                       onChange={(e) => setFilterCategory(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                       <option value="ALL">Tất cả danh mục</option>
                       {availableCategories.map(c => (
@@ -379,18 +331,10 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
         )}
       </div>
 
-      {/* Floating Action Button (FAB) for Adding */}
-      <button 
-        onClick={() => setIsAdding(true)}
-        className="fixed bottom-24 right-4 md:bottom-10 md:right-10 w-14 h-14 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-500/40 hover:scale-110 active:scale-95 transition-all z-30"
-      >
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-      </button>
-
       {/* Edit Modal */}
       {editingTransaction && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setEditingTransaction(null)}>
-           <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh] border-2 border-indigo-100" onClick={e => e.stopPropagation()}>
+           <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-slate-800">Sửa giao dịch</h3>
                 <button onClick={() => setEditingTransaction(null)} className="text-slate-400 hover:text-slate-600">
@@ -398,35 +342,38 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                 </button>
               </div>
               
-              <form onSubmit={handleUpdate} className="space-y-4 overflow-y-auto p-4">
+              <form onSubmit={handleUpdate} className="space-y-3 overflow-y-auto pr-1">
                 <div>
                    <label className="block text-xs font-bold text-slate-700 mb-1">Mô tả</label>
                    <input 
                       type="text" 
                       value={editingTransaction.description} 
                       onChange={e => setEditingTransaction({...editingTransaction, description: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       required
                    />
                 </div>
                 
+                {/* Person & Location Inputs */}
                 <div className="grid grid-cols-2 gap-3">
                    <div>
-                       <label className="block text-xs font-bold text-slate-700 mb-1">Người</label>
+                       <label className="block text-xs font-bold text-slate-700 mb-1">Người (Với ai/Cho ai)</label>
                        <input 
                           type="text" 
+                          placeholder="VD: Nam"
                           value={editingTransaction.person || ''} 
                           onChange={e => setEditingTransaction({...editingTransaction, person: e.target.value})}
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                        />
                    </div>
                    <div>
                        <label className="block text-xs font-bold text-slate-700 mb-1">Địa điểm</label>
                        <input 
                           type="text" 
+                          placeholder="VD: Vinmart"
                           value={editingTransaction.location || ''} 
                           onChange={e => setEditingTransaction({...editingTransaction, location: e.target.value})}
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                        />
                    </div>
                 </div>
@@ -439,7 +386,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                         inputMode="numeric"
                         value={editingTransaction.amount ? editingTransaction.amount.toLocaleString('en-US') : ''}
                         onChange={handleAmountChange}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         required
                     />
                   </div>
@@ -448,7 +395,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                     <select 
                        value={editingTransaction.type}
                        onChange={e => setEditingTransaction({...editingTransaction, type: e.target.value as TransactionType})}
-                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value={TransactionType.EXPENSE}>Chi tiêu</option>
                       <option value={TransactionType.INCOME}>Thu nhập</option>
@@ -461,7 +408,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                    <select 
                       value={editingTransaction.category} 
                       onChange={e => setEditingTransaction({...editingTransaction, category: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                    >
                      {Object.values(Category).map(c => (
                        <option key={c} value={c}>{c}</option>
@@ -475,7 +422,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                       type="date" 
                       value={editingTransaction.date.split('T')[0]} 
                       onChange={e => setEditingTransaction({...editingTransaction, date: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                    />
                 </div>
 
@@ -492,112 +439,6 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     Xóa giao dịch này
                    </button>
-                </div>
-              </form>
-           </div>
-        </div>
-      )}
-
-      {/* Add Modal */}
-      {isAdding && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsAdding(false)}>
-           <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh] border-2 border-indigo-100" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-slate-800">Thêm giao dịch mới</h3>
-                <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-600">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-              
-              <form onSubmit={handleSaveNew} className="space-y-4 overflow-y-auto p-4">
-                <div>
-                   <label className="block text-xs font-bold text-slate-700 mb-1">Mô tả</label>
-                   <input 
-                      type="text" 
-                      placeholder="VD: Ăn sáng"
-                      value={newTransaction.description} 
-                      onChange={e => setNewTransaction({...newTransaction, description: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      required
-                      autoFocus
-                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                   <div>
-                       <label className="block text-xs font-bold text-slate-700 mb-1">Người</label>
-                       <input 
-                          type="text" 
-                          placeholder="VD: Nam"
-                          value={newTransaction.person || ''} 
-                          onChange={e => setNewTransaction({...newTransaction, person: e.target.value})}
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       />
-                   </div>
-                   <div>
-                       <label className="block text-xs font-bold text-slate-700 mb-1">Địa điểm</label>
-                       <input 
-                          type="text" 
-                          placeholder="VD: Quán Cơm"
-                          value={newTransaction.location || ''} 
-                          onChange={e => setNewTransaction({...newTransaction, location: e.target.value})}
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       />
-                   </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Số tiền</label>
-                    <input 
-                        type="text" 
-                        inputMode="numeric"
-                        value={newTransaction.amount ? newTransaction.amount.toLocaleString('en-US') : ''}
-                        onChange={handleNewAmountChange}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        required
-                        placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Loại</label>
-                    <select 
-                       value={newTransaction.type}
-                       onChange={e => setNewTransaction({...newTransaction, type: e.target.value as TransactionType})}
-                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value={TransactionType.EXPENSE}>Chi tiêu</option>
-                      <option value={TransactionType.INCOME}>Thu nhập</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                   <label className="block text-xs font-bold text-slate-700 mb-1">Danh mục</label>
-                   <select 
-                      value={newTransaction.category} 
-                      onChange={e => setNewTransaction({...newTransaction, category: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                   >
-                     {Object.values(Category).map(c => (
-                       <option key={c} value={c}>{c}</option>
-                     ))}
-                   </select>
-                </div>
-                
-                 <div>
-                   <label className="block text-xs font-bold text-slate-700 mb-1">Ngày</label>
-                   <input 
-                      type="date" 
-                      value={newTransaction.date?.split('T')[0]} 
-                      onChange={e => setNewTransaction({...newTransaction, date: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                   />
-                </div>
-
-                <div className="pt-2 flex gap-3">
-                    <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-lg text-sm hover:bg-slate-200">Hủy</button>
-                    <button type="submit" className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-lg text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-500/30">Thêm</button>
                 </div>
               </form>
            </div>

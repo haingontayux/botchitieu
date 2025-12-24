@@ -87,7 +87,6 @@ export const BotChat: React.FC<BotChatProps> = ({
       const result = await parseTransactionFromMultimodal({ text, imageBase64, audioBase64, mimeType }, transactions);
 
       if (result) {
-        // 1. Handle Chat/Analysis Answer
         if (result.analysisAnswer) {
            const botMsg: ChatMessage = {
              id: uuidv4(),
@@ -98,24 +97,21 @@ export const BotChat: React.FC<BotChatProps> = ({
            setChatHistory(prev => [...prev, botMsg]);
         }
         
-        // 2. Handle New Transactions
-        let hasNewTransactions = false;
         if (result.transactions && result.transactions.length > 0) {
           const newMessages: ChatMessage[] = [];
           const transactionsToAdd: Transaction[] = [];
           
           result.transactions.forEach(tData => {
-             // Basic validation to avoid zero-amount spam
              if (tData.amount > 0) {
                 const newTransaction: Transaction = {
                     id: uuidv4(),
                     amount: tData.amount,
-                    category: tData.category || 'Khác',
+                    category: tData.category,
                     date: tData.date || new Date().toISOString().split('T')[0],
                     description: tData.description || 'Chi tiêu',
                     type: tData.type as TransactionType,
-                    person: tData.person, 
-                    location: tData.location
+                    person: tData.person, // New
+                    location: tData.location // New
                 };
                 
                 transactionsToAdd.push(newTransaction);
@@ -132,7 +128,6 @@ export const BotChat: React.FC<BotChatProps> = ({
 
           if (transactionsToAdd.length > 0) {
             addTransactions(transactionsToAdd);
-            hasNewTransactions = true;
           }
 
           if (newMessages.length > 0) {
@@ -140,23 +135,22 @@ export const BotChat: React.FC<BotChatProps> = ({
           }
         } 
         
-        // 3. Fallback: If AI understood nothing and gave no answer
-        if (!result.analysisAnswer && !hasNewTransactions) {
+        if (!result.analysisAnswer && (!result.transactions || result.transactions.length === 0)) {
            const botResponse: ChatMessage = {
             id: uuidv4(),
             role: 'bot',
-            content: "Tôi đã nghe nhưng chưa tìm thấy thông tin chi tiêu cụ thể. Bạn có thể nói rõ hơn không? (VD: 'Ăn sáng 30k')",
+            content: "Xin lỗi, tôi chưa hiểu rõ. Bạn muốn ghi chi tiêu hay hỏi về lịch sử?",
             timestamp: Date.now()
           };
           setChatHistory(prev => [...prev, botResponse]);
         }
 
       } else {
-        setChatHistory(prev => [...prev, { id: uuidv4(), role: 'bot', content: "Hệ thống đang bận, vui lòng thử lại sau.", timestamp: Date.now() }]);
+        setChatHistory(prev => [...prev, { id: uuidv4(), role: 'bot', content: "Lỗi xử lý, vui lòng thử lại.", timestamp: Date.now() }]);
       }
     } catch (error) {
        console.error(error);
-       setChatHistory(prev => [...prev, { id: uuidv4(), role: 'bot', content: "⚠️ Có lỗi kết nối. Hãy kiểm tra lại mạng.", timestamp: Date.now() }]);
+       setChatHistory(prev => [...prev, { id: uuidv4(), role: 'bot', content: "Lỗi kết nối AI.", timestamp: Date.now() }]);
     } finally {
       setIsTyping(false);
     }
@@ -301,7 +295,7 @@ export const BotChat: React.FC<BotChatProps> = ({
         {chatHistory.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`}>
             <div className={`max-w-[85%] md:max-w-[75%] px-3 py-2 text-sm shadow-sm relative ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-sm' : 'bg-white text-slate-700 rounded-2xl rounded-tl-sm border border-slate-100'}`}>
-              <div className="markdown-body leading-relaxed text-sm" dangerouslySetInnerHTML={{__html: msg.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/_(.*?)_/g, '<i>$1</i>').replace(/\n/g, '<br/>')}}></div>
+              <div className="markdown-body leading-relaxed text-sm" dangerouslySetInnerHTML={{__html: msg.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/_(.*?)_/g, '<i>$1</i>')}}></div>
               {msg.audioBase64 && (
                 <div className="mt-2 p-1 bg-white/10 rounded-lg">
                   <audio controls src={msg.audioBase64} className="h-8 w-full min-w-[200px]" />

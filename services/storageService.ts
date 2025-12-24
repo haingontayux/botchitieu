@@ -94,23 +94,17 @@ export const syncFromCloud = async (scriptUrl: string): Promise<Transaction[] | 
     const data = await response.json();
     if (data.status === 'success' && Array.isArray(data.data)) {
       // Map data from sheet to Transaction type
-      const parsedData: Transaction[] = data.data
-        .map((item: any) => ({
-          id: item.id,
-          date: item.date,
-          description: item.description,
-          amount: item.amount,
-          category: item.category,
-          type: item.type,
-          status: item.status || 'CONFIRMED',
-          person: item.person || undefined, 
-          location: item.location || undefined 
-        }))
-        // FAILSAFE FILTER: Remove items that look like system messages (start with emoji check)
-        .filter((item: Transaction) => {
-             const desc = item.description || "";
-             return !desc.startsWith("✅") && !desc.startsWith("📩") && !desc.startsWith("🔔") && !desc.startsWith("🆔");
-        });
+      const parsedData: Transaction[] = data.data.map((item: any) => ({
+        id: item.id,
+        date: item.date,
+        description: item.description,
+        amount: item.amount,
+        category: item.category,
+        type: item.type,
+        status: item.status || 'CONFIRMED',
+        person: item.person || undefined, // Map new field
+        location: item.location || undefined // Map new field
+      }));
       
       saveTransactionsLocal(parsedData);
       return parsedData;

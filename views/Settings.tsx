@@ -10,34 +10,35 @@ interface SettingsProps {
 
 // Fixed \\n for correct escaping in pre/code block
 const GAS_SCRIPT_CODE = `// ============================================================
-// FINBOT V6 (ANTI-LOOP & ANTI-BOT MODE)
-// 1. Copy toàn bộ code này.
-// 2. Dán vào Google Apps Script -> Save -> Deploy -> New deployment -> Deploy.
-// 3. Chạy hàm 'setup' một lần.
+// HƯỚNG DẪN FIX LỖI (BẢN FINAL V2 - Hỗ trợ Person & Location):
+// 1. Dán code này đè lên code cũ.
+// 2. Nhấn "Deploy" -> "New deployment" -> "Deploy".
+// 3. Copy URL Web App (đuôi /exec) dán vào dòng 2 dưới đây.
+// 4. Chọn hàm 'setup' ở thanh công cụ và nhấn 'Run'.
 // ============================================================
 
-const WEB_APP_URL = ""; // <--- DÁN URL WEB APP (SAU KHI DEPLOY)
-const TELEGRAM_BOT_TOKEN = ""; // <--- DÁN TOKEN BOT
+const WEB_APP_URL = ""; // <--- DÁN URL WEB APP CỦA BẠN VÀO GIỮA 2 DẤU NGOẶC KÉP
+const TELEGRAM_BOT_TOKEN = ""; // <--- Dán Token Bot vào đây nếu chưa có
 
 function doPost(e) {
   try {
     if (e && e.postData && e.postData.contents) {
       const contents = JSON.parse(e.postData.contents);
       
-      // 1. Xử lý lệnh từ Web App (Gửi tin nhắn về Tele)
       if (contents.action === 'NOTIFY') {
-         sendTelegramMessage(contents.chatId, contents.message);
-      } 
-      // 2. Xử lý đồng bộ dữ liệu Web App -> Sheet
-      else if (contents.action) {
+         sendTelegramMessage(contents.chatId, "🔔 " + contents.message);
+      } else if (contents.action) {
          handleWebAppSync(contents);
-      } 
-      // 3. Xử lý tin nhắn từ Telegram -> Sheet
-      else if (contents.message) {
+      } else if (contents.message) {
          handleTelegramMessage(contents.message);
       }
     }
-  } catch (err) {}
+  } catch (err) {
+    try {
+       const c = JSON.parse(e.postData.contents);
+       if(c.message) sendTelegramMessage(c.message.chat.id, "⚠️ Lỗi: " + err.toString());
+    } catch(ex) {}
+  }
   
   return ContentService.createTextOutput(JSON.stringify({status: "success"}))
     .setMimeType(ContentService.MimeType.JSON);
@@ -54,12 +55,11 @@ function doGet(e) {
 
 function getSheetData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-  if (sheet.getLastRow() <= 1) return [];
+  if (sheet.getLastRow() <= 1) return []; // Chỉ có header hoặc trống
   
   const rows = sheet.getDataRange().getValues();
   const data = [];
   for (let i = 1; i < rows.length; i++) {
-    // Chỉ lấy dòng có ID hợp lệ
     if(rows[i][0]) {
       data.push({
         id: rows[i][0], 
@@ -69,8 +69,8 @@ function getSheetData() {
         category: rows[i][4], 
         type: rows[i][5], 
         status: rows[i][6],
-        person: rows[i][7] || "",
-        location: rows[i][8] || ""
+        person: rows[i][7] || "", // Col H
+        location: rows[i][8] || "" // Col I
       });
     }
   }
@@ -81,20 +81,24 @@ function handleWebAppSync(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const t = data.data;
 
+  // Tạo header nếu chưa có (Thêm Person, Location)
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(["ID", "Date", "Description", "Amount", "Category", "Type", "Status", "Person", "Location"]);
   }
 
+  // Row Data array
   const rowData = [t.id, t.date, t.description, t.amount, t.category, t.type, t.status, t.person || "", t.location || ""];
 
   if (data.action === 'ADD') {
     sheet.appendRow(rowData);
   } else {
+    // Tìm dòng để update/delete
     const ids = sheet.getRange(2, 1, sheet.getLastRow(), 1).getValues().flat();
-    const rowIndex = ids.indexOf(t.id);
+    const rowIndex = ids.indexOf(t.id); // Trả về index tính từ 0 (tương ứng dòng 2 trong sheet)
     
     if (rowIndex !== -1) {
       if (data.action === 'UPDATE') {
+         // Update 9 columns
          sheet.getRange(rowIndex + 2, 1, 1, 9).setValues([rowData]);
       } else if (data.action === 'DELETE') {
          sheet.deleteRow(rowIndex + 2);
@@ -108,63 +112,53 @@ function handleTelegramMessage(msg) {
   const text = msg.text;
   const chatId = msg.chat.id;
 
-  // --- LỚP BẢO VỆ 1: CHẶN BOT ---
-  // Nếu người gửi là bot -> Bỏ qua ngay lập tức
-  if (msg.from.is_bot) return;
-
-  // --- LỚP BẢO VỆ 2: CHẶN TIN RÁC ---
-  // Nếu không có text hoặc text bắt đầu bằng ký tự xác nhận của hệ thống -> Bỏ qua
   if (!text) return;
-  if (text.startsWith("✅") || text.startsWith("📩") || text.startsWith("🔔") || text.startsWith("🆔")) return;
 
-  // Lệnh lấy ID
   if (text === '/id' || text === '/start') {
-     sendTelegramMessage(chatId, "🆔 ID: " + chatId);
+     sendTelegramMessage(chatId, "🆔 ID: <code>" + chatId + "</code>");
      return;
   }
 
   const date = new Date().toISOString();
-  // --- LỚP BẢO VỆ 3: ID ĐỘC NHẤT ---
-  // Kết hợp ChatID và MessageID để đảm bảo không bao giờ trùng lặp
-  const id = 'TG_' + chatId + '_' + msg.message_id;
+  const id = 'TG_' + msg.message_id;
 
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(["ID", "Date", "Description", "Amount", "Category", "Type", "Status", "Person", "Location"]);
   }
-  
-  // Kiểm tra trùng lặp trong Sheet (Phòng hờ Telegram gửi lại request cũ)
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-     const ids = sheet.getRange(2, 1, lastRow-1, 1).getValues().flat();
-     if(ids.includes(id)) return; 
-  }
 
-  // GHI VÀO SHEET (Trạng thái PENDING)
-  sheet.appendRow([id, date, text, 0, 'Khác', 'EXPENSE', 'PENDING', '', '']);
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) { 
+    const existingIds = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+    if (existingIds.includes(id)) return; 
+  }
   
-  // Phản hồi user (Không ghi lại phản hồi này vào sheet vì đã bị chặn ở Lớp 1 & 2)
-  sendTelegramMessage(chatId, "📩 Đã nhận: " + text);
+  // Mặc định Person/Location trống khi nhận từ Telegram (sẽ được AI điền sau khi xử lý trên App)
+  sheet.appendRow([id, date, text, 0, 'Khác', 'EXPENSE', 'PENDING', '', '']);
+  sendTelegramMessage(chatId, "✅ Đã nhận: " + text);
 }
 
 function sendTelegramMessage(chatId, text) {
   try {
-    if(!TELEGRAM_BOT_TOKEN || !text) return;
+    if(!TELEGRAM_BOT_TOKEN) return;
     UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage", {
       "method": "post",
       "contentType": "application/json",
       "payload": JSON.stringify({ "chat_id": chatId, "text": text, "parse_mode": "HTML" })
     });
-  } catch(e) {}
+  } catch(e) { Logger.log(e); }
 }
 
 function setup() {
   if (!WEB_APP_URL || WEB_APP_URL.indexOf("exec") === -1) {
-    Logger.log("❌ LỖI: Chưa điền URL Web App.");
+    Logger.log("❌ LỖI: Chưa điền URL Web App (đuôi /exec) vào dòng 2.");
     return;
+  }
+  if (!TELEGRAM_BOT_TOKEN) {
+     Logger.log("⚠️ CẢNH BÁO: Chưa điền Token Bot Telegram. Bot sẽ không phản hồi.");
   }
   const url = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/setWebhook?url=" + WEB_APP_URL;
   const response = UrlFetchApp.fetch(url);
-  Logger.log("✅ SETUP OK: " + response.getContentText());
+  Logger.log("✅ KẾT QUẢ: " + response.getContentText());
 }
 `;
 

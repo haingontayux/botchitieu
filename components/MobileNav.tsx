@@ -116,7 +116,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, setCurrentTab,
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
     )},
     { id: 'chat', label: 'Bot', isBot: true, icon: (
-      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+      <svg className="w-8 h-8 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
     )},
     { id: 'history', label: 'Lịch sử', icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -128,34 +128,35 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, setCurrentTab,
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 flex justify-between items-center z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] select-none safe-area-bottom">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 flex justify-between items-end z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] select-none">
         {navItems.map((item) => {
           if (item.isBot) {
               return (
-                <button
-                    key={item.id}
-                    // Touch Events
-                    onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-                    onTouchEnd={stopRecording}
-                    onTouchCancel={stopRecording}
-                    // Mouse Events
-                    onMouseDown={startRecording}
-                    onMouseUp={stopRecording}
-                    onMouseLeave={stopRecording}
-                    onContextMenu={(e) => e.preventDefault()}
-                    
-                    className={`flex items-center justify-center rounded-full shadow-lg transform transition-all duration-200 
-                        ${isRecording || isInitializing 
-                            ? 'bg-red-500 scale-110 ring-4 ring-red-200' 
-                            : 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white ring-4 ring-indigo-50 active:scale-95 shadow-indigo-500/40'}
-                    `}
-                    style={{ 
-                        width: '56px', height: '56px',
-                        touchAction: 'none', WebkitUserSelect: 'none'
-                    }}
-                >
-                    {item.icon}
-                </button>
+                <div key={item.id} className="relative -top-5">
+                    <button
+                        // Touch Events
+                        onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                        onTouchEnd={stopRecording}
+                        onTouchCancel={stopRecording}
+                        // Mouse Events
+                        onMouseDown={startRecording}
+                        onMouseUp={stopRecording}
+                        onMouseLeave={stopRecording}
+                        onContextMenu={(e) => e.preventDefault()}
+                        
+                        className={`flex flex-col items-center justify-center rounded-full shadow-lg transform transition-all duration-200 
+                            ${currentTab === 'chat' ? 'bg-indigo-600 text-white' : 'bg-indigo-600 text-white'}
+                            ${isRecording || isInitializing ? 'scale-125 ring-4 ring-red-200 bg-red-500' : ''}
+                        `}
+                        style={{ 
+                            width: '56px', height: '56px',
+                            touchAction: 'none', WebkitUserSelect: 'none'
+                        }}
+                    >
+                        {item.icon}
+                    </button>
+                    <span className="text-[10px] font-medium text-gray-500 absolute -bottom-4 left-1/2 transform -translate-x-1/2">Bot</span>
+                </div>
               );
           }
           
