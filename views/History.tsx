@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction, TransactionType, Category, CategoryIcons } from '../types';
 import { formatCurrency } from '../services/geminiService';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +11,15 @@ interface HistoryProps {
   onAdd: (transaction: Transaction) => void; 
 }
 
+// Phân loại danh mục
+const EXPENSE_CATEGORIES = [
+  Category.FOOD, Category.TRANSPORT, Category.SHOPPING, Category.BILLS, 
+  Category.ENTERTAINMENT, Category.HEALTH, Category.EDUCATION, Category.OTHER
+];
+const INCOME_CATEGORIES = [
+  Category.SALARY, Category.INVESTMENT, Category.OTHER
+];
+
 const TransactionModal: React.FC<{ 
     onClose: () => void, 
     onSave: (t: Transaction) => void,
@@ -17,13 +27,28 @@ const TransactionModal: React.FC<{
 }> = ({ onClose, onSave, initialData }) => {
     const [amount, setAmount] = useState(initialData ? initialData.amount.toLocaleString('en-US') : '');
     const [description, setDescription] = useState(initialData?.description || '');
-    const [category, setCategory] = useState<string>(initialData?.category || Category.OTHER);
     const [type, setType] = useState<TransactionType>(initialData?.type || TransactionType.EXPENSE);
+    
+    // Logic chọn danh mục mặc định thông minh
+    const defaultCategory = initialData?.category || (type === TransactionType.EXPENSE ? Category.FOOD : Category.SALARY);
+    const [category, setCategory] = useState<string>(defaultCategory);
+    
     const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
     
     // Additional Fields
     const [person, setPerson] = useState(initialData?.person || '');
     const [location, setLocation] = useState(initialData?.location || '');
+
+    // Cập nhật danh mục khi đổi loại giao dịch
+    useEffect(() => {
+        if (!initialData) { // Chỉ reset khi đang thêm mới
+            if (type === TransactionType.EXPENSE && !EXPENSE_CATEGORIES.includes(category as Category)) {
+                setCategory(Category.FOOD);
+            } else if (type === TransactionType.INCOME && !INCOME_CATEGORIES.includes(category as Category)) {
+                setCategory(Category.SALARY);
+            }
+        }
+    }, [type]);
 
     const handleSubmit = () => {
         if (!amount || !description) return alert("Vui lòng nhập số tiền và mô tả");
@@ -44,6 +69,8 @@ const TransactionModal: React.FC<{
         });
         onClose();
     };
+
+    const currentCategories = type === TransactionType.EXPENSE ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
@@ -80,7 +107,7 @@ const TransactionModal: React.FC<{
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Danh mục</label>
                             <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none appearance-none">
-                                {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
+                                {currentCategories.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
                         <div>
@@ -100,6 +127,7 @@ const TransactionModal: React.FC<{
 }
 
 export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit, onAdd }) => {
+  const [filterType, setFilterType] = useState<'ALL' | 'EXPENSE' | 'INCOME'>('ALL'); // State cho Tab
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('');
   const [modalMode, setModalMode] = useState<'ADD' | 'EDIT' | null>(null);
@@ -108,9 +136,14 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
   
   const groupedData = useMemo(() => {
     let filtered = transactions.filter(t => {
+        // Lọc theo Tab (Loại giao dịch)
+        const matchesType = filterType === 'ALL' || 
+                            (filterType === 'EXPENSE' && t.type === TransactionType.EXPENSE) ||
+                            (filterType === 'INCOME' && t.type === TransactionType.INCOME);
+        
         const matchesCategory = filterCategory === 'all' || t.category === filterCategory;
         const matchesDate = !filterDate || t.date === filterDate;
-        return matchesCategory && matchesDate;
+        return matchesType && matchesCategory && matchesDate;
     });
 
     filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -133,7 +166,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
         ...groups[date]
     }));
 
-  }, [transactions, filterCategory, filterDate]);
+  }, [transactions, filterType, filterCategory, filterDate]);
 
   const visibleGroups = groupedData.slice(0, displayLimit);
   const hasMore = groupedData.length > displayLimit;
@@ -146,40 +179,66 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
   return (
     <div className="space-y-4 pb-32 md:pb-10 animate-fade-in relative h-full">
       
-      {/* Filters Bar */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xl p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2 overflow-x-auto no-scrollbar">
+      {/* 1. Main Tabs (Type Filter) - Sticky Top */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl pt-2 pb-2">
+          <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner">
+            <button 
+                onClick={() => setFilterType('ALL')} 
+                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${filterType === 'ALL' ? 'bg-white text-indigo-600 shadow-sm scale-[1.02]' : 'text-slate-400'}`}
+            >
+                Tất cả
+            </button>
+            <button 
+                onClick={() => setFilterType('EXPENSE')} 
+                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${filterType === 'EXPENSE' ? 'bg-white text-red-500 shadow-sm scale-[1.02]' : 'text-slate-400'}`}
+            >
+                Chi tiêu
+            </button>
+            <button 
+                onClick={() => setFilterType('INCOME')} 
+                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${filterType === 'INCOME' ? 'bg-white text-green-500 shadow-sm scale-[1.02]' : 'text-slate-400'}`}
+            >
+                Thu nhập
+            </button>
+          </div>
+      </div>
+
+      {/* 2. Secondary Filters (Category & Date) */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar px-1">
          <select 
             value={filterCategory} 
             onChange={e => setFilterCategory(e.target.value)} 
-            className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-500 outline-none shrink-0"
+            className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-500 outline-none shrink-0 shadow-sm"
          >
-            <option value="all">Tất cả danh mục</option>
+            <option value="all">📁 Tất cả danh mục</option>
             {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
          </select>
          <input 
             type="date" 
             value={filterDate} 
             onChange={e => setFilterDate(e.target.value)} 
-            className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-500 outline-none shrink-0" 
+            className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-500 outline-none shrink-0 shadow-sm" 
          />
          {(filterCategory !== 'all' || filterDate) && (
-             <button onClick={() => { setFilterCategory('all'); setFilterDate(''); }} className="px-3 py-2 bg-red-50 text-red-500 rounded-xl text-xs font-bold whitespace-nowrap">
-                 Xóa lọc
+             <button onClick={() => { setFilterCategory('all'); setFilterDate(''); }} className="px-3 py-2 bg-red-50 text-red-500 rounded-xl text-xs font-bold whitespace-nowrap shadow-sm">
+                 ✕ Bỏ lọc
              </button>
          )}
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-6 mt-2">
         {visibleGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
              <div className="text-4xl mb-2 opacity-40">📭</div>
              <p className="text-sm font-medium">Không tìm thấy giao dịch nào</p>
           </div>
         ) : (
-          visibleGroups.map(group => (
+          visibleGroups.map(group => {
+            const netAmount = group.income - group.expense;
+            return (
             <div key={group.date} className="space-y-2 animate-fade-in">
-                {/* Date Header with Daily Totals */}
-                <div className="flex items-center justify-between px-2 sticky top-14 z-10 bg-slate-50/80 backdrop-blur-sm py-2 rounded-lg">
+                {/* Date Header with Daily Totals & NET Calculation */}
+                <div className="flex items-center justify-between px-3 sticky top-[60px] z-20 bg-slate-50/95 backdrop-blur-md py-2.5 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] border border-slate-100 transition-all">
                     <div className="flex flex-col">
                         <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
                             {new Date(group.date).toLocaleDateString('vi-VN', { weekday: 'long' })}
@@ -188,19 +247,33 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                             {new Date(group.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                         </span>
                     </div>
-                    <div className="flex gap-2">
-                        {group.income > 0 && (
-                            <div className="bg-green-50 px-2 py-1 rounded-lg text-right">
-                                <p className="text-[8px] uppercase font-bold text-green-500 leading-none">Thu</p>
-                                <p className="text-[10px] font-black text-green-600">{formatCurrency(group.income)}</p>
-                            </div>
-                        )}
-                        {group.expense > 0 && (
-                            <div className="bg-red-50 px-2 py-1 rounded-lg text-right">
-                                <p className="text-[8px] uppercase font-bold text-red-400 leading-none">Chi</p>
-                                <p className="text-[10px] font-black text-red-600">{formatCurrency(group.expense)}</p>
-                            </div>
-                        )}
+                    
+                    <div className="flex items-center gap-2">
+                        {/* Summary Block */}
+                        <div className="flex flex-col items-end space-y-0.5">
+                            {/* Only show detail breakdown if viewing ALL */}
+                            {filterType === 'ALL' && (
+                                <div className="flex gap-2 text-[9px] font-bold">
+                                    {group.income > 0 && <span className="text-green-600">+{formatCurrency(group.income)}</span>}
+                                    {group.expense > 0 && <span className="text-red-500">-{formatCurrency(group.expense)}</span>}
+                                </div>
+                            )}
+                            
+                            {/* NET Calculation based on Filter */}
+                            {filterType === 'ALL' ? (
+                                <div className={`text-xs font-black ${netAmount >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
+                                    {netAmount > 0 ? '+' : ''}{formatCurrency(netAmount)}
+                                </div>
+                            ) : filterType === 'EXPENSE' ? (
+                                <div className="text-xs font-black text-red-500">
+                                    -{formatCurrency(group.expense)}
+                                </div>
+                            ) : (
+                                <div className="text-xs font-black text-green-600">
+                                    +{formatCurrency(group.income)}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -249,7 +322,8 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                     ))}
                 </div>
             </div>
-          ))
+            );
+          })
         )}
         
         {hasMore && (
