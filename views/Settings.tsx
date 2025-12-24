@@ -1,21 +1,13 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { UserSettings } from '../types';
-import { exportData, importData, syncFromCloud, syncToCloud, sendTelegramNotification, applyTheme } from '../services/storageService';
+import { exportData, importData, syncFromCloud, applyTheme } from '../services/storageService';
 
 interface SettingsProps {
   settings: UserSettings;
   onSave: (s: UserSettings) => void;
   onDataUpdate: () => void;
 }
-
-const GAS_SCRIPT_CODE = `// CODE GOOGLE APPS SCRIPT
-const WEB_APP_URL = ""; 
-const TELEGRAM_BOT_TOKEN = ""; 
-
-function doPost(e) { /* ... Logic cũ ... */ return ContentService.createTextOutput(JSON.stringify({status: "success"})); }
-function doGet(e) { return ContentService.createTextOutput(JSON.stringify({status: "success", data: getSheetData()})); }
-// (Bạn có thể sao chép full code từ các phiên bản trước hoặc link hướng dẫn)
-`;
 
 const THEMES = [
   { id: 'indigo', name: 'Xanh tím', bg: 'bg-indigo-600' },
@@ -29,8 +21,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
   const [localSettings, setLocalSettings] = useState<UserSettings>(settings);
   const [isSaved, setIsSaved] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [showScriptModal, setShowScriptModal] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+
+  // Đồng bộ props vào state khi props thay đổi (fix lỗi không hiện dữ liệu mới)
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
   const handleSave = () => {
     onSave(localSettings);
@@ -39,9 +35,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
   };
 
   const handleThemeChange = (color: string) => {
-      // Update Local State for UI selection
       setLocalSettings({...localSettings, themeColor: color as any});
-      // Instant Preview: Apply CSS vars immediately
       applyTheme(color);
   };
 
@@ -61,29 +55,60 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20 md:pb-0 relative">
+    <div className="space-y-6 animate-fade-in pb-10">
       
+      {/* Header cho mobile dễ nhìn hơn */}
+      <div className="flex items-center justify-between mb-2">
+         <h2 className="text-2xl font-black text-slate-800">Cài đặt</h2>
+         {isSaved && <span className="text-green-600 font-bold animate-fade-in">Đã lưu!</span>}
+      </div>
+
       {/* Theme Selection */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-        <h3 className="text-base font-bold text-slate-800 mb-3 border-b border-slate-50 pb-2">Giao diện</h3>
+        <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider text-slate-400">Giao diện</h3>
         <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
           {THEMES.map(theme => (
             <button
               key={theme.id}
               onClick={() => handleThemeChange(theme.id)}
-              className={`flex flex-col items-center space-y-2 min-w-[60px] p-2 rounded-xl border-2 transition-all ${localSettings.themeColor === theme.id ? 'border-slate-800 bg-slate-50' : 'border-transparent'}`}
+              className={`flex flex-col items-center space-y-2 min-w-[60px] p-2 rounded-xl border-2 transition-all ${localSettings.themeColor === theme.id ? 'border-brand-600 bg-brand-50' : 'border-transparent'}`}
             >
               <div className={`w-8 h-8 rounded-full shadow-sm ${theme.bg}`}></div>
-              <span className="text-[10px] font-bold text-slate-600">{theme.name}</span>
+              <span className={`text-[10px] font-bold ${localSettings.themeColor === theme.id ? 'text-brand-700' : 'text-slate-500'}`}>{theme.name}</span>
             </button>
           ))}
         </div>
       </div>
 
+      {/* API Key - Quan trọng */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-brand-200 ring-4 ring-brand-50/50">
+        <h3 className="text-sm font-bold text-brand-600 mb-3 uppercase tracking-wider">🤖 Kết nối AI (Bắt buộc)</h3>
+        <div className="space-y-3">
+           <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Google Gemini API Key</label>
+            <div className="relative">
+              <input 
+                type={showApiKey ? "text" : "password"}
+                value={localSettings.geminiApiKey || ''}
+                onChange={(e) => setLocalSettings({...localSettings, geminiApiKey: e.target.value})}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 text-sm font-mono pr-10"
+                placeholder="Dán API Key vào đây..."
+              />
+              <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-3 top-3 text-slate-400">
+                 {showApiKey ? '🙈' : '👁️'}
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2">
+              Lấy key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-brand-600 underline font-bold">Google AI Studio</a>.
+            </p>
+           </div>
+        </div>
+      </div>
+
       {/* Finance Settings */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-        <h3 className="text-base font-bold text-slate-800 mb-3 border-b border-slate-50 pb-2">Tài chính</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <h3 className="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Tài chính</h3>
+        <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1">Số dư đầu kỳ</label>
             <input 
@@ -91,76 +116,61 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
               inputMode="numeric"
               value={localSettings.initialBalance?.toLocaleString('vi-VN')}
               onChange={(e) => handleCurrencyInputChange('initialBalance', e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 text-sm font-bold"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 text-sm font-bold"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Hạn mức/ngày</label>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Hạn mức chi tiêu / ngày</label>
             <input 
               type="text" 
               inputMode="numeric"
               value={localSettings.dailyLimit?.toLocaleString('vi-VN')}
               onChange={(e) => handleCurrencyInputChange('dailyLimit', e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 text-sm font-bold"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 text-sm font-bold"
             />
           </div>
         </div>
       </div>
 
-      {/* API Key */}
+      {/* Cloud Settings */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-        <h3 className="text-base font-bold text-slate-800 mb-3 border-b border-slate-50 pb-2">AI & Cloud</h3>
-        <div className="space-y-4">
-           <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Gemini API Key</label>
-            <div className="relative">
-              <input 
-                type={showApiKey ? "text" : "password"}
-                value={localSettings.geminiApiKey || ''}
-                onChange={(e) => setLocalSettings({...localSettings, geminiApiKey: e.target.value})}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 text-sm pr-10"
-                placeholder="AIza..."
-              />
-              <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-2 top-2.5 text-slate-400">
-                 {showApiKey ? '🙈' : '👁️'}
-              </button>
-            </div>
-           </div>
-           
-           <div>
+        <h3 className="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Đồng bộ Cloud (Tùy chọn)</h3>
+         <div>
             <label className="block text-xs font-bold text-slate-500 mb-1">Apps Script URL</label>
             <div className="flex gap-2">
               <input 
                 type="text" 
                 value={localSettings.appScriptUrl || ''}
                 onChange={(e) => setLocalSettings({...localSettings, appScriptUrl: e.target.value})}
-                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 text-sm"
+                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 text-sm"
+                placeholder="https://script.google.com/..."
               />
-              <button onClick={handleTestConnection} disabled={isTesting} className="px-3 bg-slate-100 rounded-lg text-xs font-bold">
-                 {isTesting ? '...' : 'Check'}
+              <button onClick={handleTestConnection} disabled={isTesting} className="px-4 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+                 Check
               </button>
             </div>
-           </div>
-        </div>
+         </div>
       </div>
 
+      {/* Backup */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-         <h3 className="text-base font-bold text-slate-800 mb-3">Backup Data</h3>
+         <h3 className="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Dữ liệu</h3>
          <div className="flex gap-3">
-             <button onClick={exportData} className="flex-1 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-600 text-sm hover:bg-slate-100">Sao lưu</button>
-             <label className="flex-1 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-600 text-sm hover:bg-slate-100 text-center cursor-pointer">
+             <button onClick={exportData} className="flex-1 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-600 text-sm hover:bg-slate-100 transition-colors">Sao lưu</button>
+             <label className="flex-1 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-600 text-sm hover:bg-slate-100 transition-colors text-center cursor-pointer">
                  Khôi phục
-                 <input type="file" onChange={(e) => { if(e.target.files?.[0]) importData(e.target.files[0]).then(ok => ok && (alert("OK"), onDataUpdate())) }} className="hidden" accept=".json" />
+                 <input type="file" onChange={(e) => { if(e.target.files?.[0]) importData(e.target.files[0]).then(ok => ok && (alert("Đã khôi phục dữ liệu"), onDataUpdate())) }} className="hidden" accept=".json" />
              </label>
          </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 md:relative md:bg-transparent md:border-0 md:p-0 z-30">
+      {/* Save Button - Static Position */}
+      <div className="pt-4 pb-8">
         <button 
             onClick={handleSave}
-            className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all ${isSaved ? 'bg-green-500' : 'bg-brand-600 hover:bg-brand-700'}`}
+            className={`w-full py-4 rounded-xl font-bold text-white shadow-lg shadow-brand-500/30 transition-all active:scale-95 ${isSaved ? 'bg-green-500' : 'bg-brand-600 hover:bg-brand-700'}`}
         >
-            {isSaved ? 'Đã lưu!' : 'Lưu cài đặt'}
+            {isSaved ? '✅ Đã lưu thành công!' : 'Lưu tất cả cài đặt'}
         </button>
       </div>
     </div>
