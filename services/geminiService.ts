@@ -13,6 +13,7 @@ export interface ParsedTransactionData {
   type: TransactionType;
   person?: string;
   location?: string;
+  paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD';
 }
 
 export interface BotResponse {
@@ -21,37 +22,37 @@ export interface BotResponse {
 }
 
 const generateSystemInstruction = (historyContext: string) => `
-You are a smart financial assistant for a Vietnamese user. 
-CURRENT DATE: ${new Date().toLocaleDateString('vi-VN')} (${new Date().toISOString().split('T')[0]})
+You are FinBot, a professional Vietnamese financial assistant.
+Current Date: ${new Date().toLocaleDateString('vi-VN')}
 
-Your task is TWO-FOLD:
-1. RECORD TRANSACTIONS: Extract spending or income from user input. 
-   - CRITICAL: The user might say multiple items. Split them.
-   - Currency: "k" = 000. 
-   - Categories: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
-   
-   - EXTRACTION RULES (IMPORTANT):
-     1. **description**: The main item or action (e.g., "Ăn phở", "Mua áo thun", "Tiền ăn vặt").
-     2. **person**: Specific name of person involved (e.g., "Châu", "Nam", "Mẹ"). If generic like "bạn bè", ignore or keep brief.
-     3. **location**: Specific place/brand (e.g., "Quán Bà Hằng", "Vinmart", "Shopee").
+TASK: Extract transaction details from user input.
 
-     Examples:
-     - Input: "Cho châu 10k tiền ăn vặt" 
-       -> description: "Tiền ăn vặt", person: "Châu", amount: 10000
-     - Input: "Ăn phở quán bà hằng với nam hết 30k" 
-       -> description: "Ăn phở", location: "Quán Bà Hằng", person: "Nam", amount: 30000
-     - Input: "Mua rau thịt ở vinmart" 
-       -> description: "Mua rau thịt", location: "Vinmart"
+RULES:
+1. Amount: "k"=000, "tr"=1,000,000.
+2. Categories: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
+3. Payment Method:
+   - "ck", "chuyển khoản", "banking" -> 'TRANSFER'
+   - "thẻ", "card", "visa" -> 'CARD'
+   - Default or "tiền mặt" -> 'CASH'
 
-2. ANALYZE DATA: If user asks a question, return 'analysisAnswer'.
-
-CONTEXT (Recent User Transactions):
+CONTEXT:
 ${historyContext}
 
-OUTPUT FORMAT (JSON):
+JSON OUTPUT:
 {
-  "transactions": [ { ... } ] OR null,
-  "analysisAnswer": "String" OR null
+  "transactions": [
+    {
+      "amount": number,
+      "category": string,
+      "description": string,
+      "date": "YYYY-MM-DD",
+      "type": "EXPENSE" | "INCOME",
+      "person": string | null,
+      "location": string | null,
+      "paymentMethod": "CASH" | "TRANSFER" | "CARD"
+    }
+  ],
+  "analysisAnswer": string | null
 }
 `;
 
@@ -59,39 +60,18 @@ export const parseTransactionFromMultimodal = async (
   input: { text?: string; imageBase64?: string; audioBase64?: string; mimeType?: string },
   transactionHistory: Transaction[] = []
 ): Promise<BotResponse | null> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key not found");
-  }
+  if (!process.env.API_KEY) throw new Error("API Key not found");
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const parts: any[] = [];
 
-  // Context: Date, Desc, Amount, Cat, Person, Location
-  const historyContext = transactionHistory.slice(-100).map(t => 
-    `- [${t.date}] ${t.description} (${t.category}): ${t.amount} ${t.person ? `| Với: ${t.person}` : ''} ${t.location ? `| Tại: ${t.location}` : ''}`
+  const historyContext = transactionHistory.slice(-20).map(t => 
+    `- [${t.date}] ${t.description}: ${t.amount}`
   ).join('\n');
 
   if (input.text) parts.push({ text: input.text });
-
-  if (input.imageBase64) {
-    parts.push({
-      inlineData: {
-        data: input.imageBase64,
-        mimeType: input.mimeType || "image/jpeg",
-      },
-    });
-    if (!input.text) parts.push({ text: "Analyze this image for expenses." });
-  }
-
-  if (input.audioBase64) {
-    parts.push({
-      inlineData: {
-        data: input.audioBase64,
-        mimeType: input.mimeType || "audio/webm",
-      },
-    });
-    if (!input.text) parts.push({ text: "Listen carefully. Split multiple items if spoken. Answer if it's a question." });
-  }
+  if (input.imageBase64) parts.push({ inlineData: { data: input.imageBase64, mimeType: input.mimeType || "image/jpeg" } });
+  if (input.audioBase64) parts.push({ inlineData: { data: input.audioBase64, mimeType: input.mimeType || "audio/webm" } });
 
   try {
     const response = await ai.models.generateContent({
@@ -115,7 +95,8 @@ export const parseTransactionFromMultimodal = async (
                   date: { type: Type.STRING },
                   type: { type: Type.STRING, enum: ['EXPENSE', 'INCOME'] },
                   person: { type: Type.STRING, nullable: true },
-                  location: { type: Type.STRING, nullable: true }
+                  location: { type: Type.STRING, nullable: true },
+                  paymentMethod: { type: Type.STRING, enum: ['CASH', 'TRANSFER', 'CARD'], nullable: true }
                 }
               }
             },
@@ -125,14 +106,10 @@ export const parseTransactionFromMultimodal = async (
       }
     });
 
-    if (response.text) {
-      const data = JSON.parse(response.text) as BotResponse;
-      return data;
-    }
+    if (response.text) return JSON.parse(response.text) as BotResponse;
     return null;
-
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error(error);
     return null;
   }
 };
@@ -141,38 +118,21 @@ export const generateBotResponse = (data: ParsedTransactionData): string => {
   let details = "";
   if (data.location) details += ` 📍 ${data.location}`;
   if (data.person) details += ` 👤 ${data.person}`;
+  if (data.paymentMethod === 'TRANSFER') details += ` 🏦 CK`;
+  if (data.paymentMethod === 'CARD') details += ` 💳 Thẻ`;
   
-  return `✅ Ghi nhận: **${formatCurrency(data.amount)}** - _${data.description}_${details} (${data.category})`;
+  return `✅ Ghi nhận: **${formatCurrency(data.amount)}** - _${data.description}_${details}`;
 };
 
 export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promise<string> => {
   if (!process.env.API_KEY) return "Vui lòng cấu hình API Key.";
-
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  const recentTx = transactions.slice(-60).map(t => 
-    `${t.date}: ${t.description} (${t.category}) - ${t.amount} ${t.person ? `[Với: ${t.person}]` : ''} ${t.location ? `[Tại: ${t.location}]` : ''}`
-  ).join('\n');
-
-  const prompt = `
-    Dựa trên lịch sử giao dịch:
-    ${recentTx}
-
-    Hãy đóng vai chuyên gia tài chính và phân tích SÂU (150 từ):
-    1. Nhận diện thói quen dựa trên NGƯỜI (Person) và ĐỊA ĐIỂM (Location). (Ví dụ: Hay ăn với ai? Hay mua sắm ở đâu?).
-    2. Chỉ ra xu hướng tiêu dùng (Tăng/giảm).
-    3. Lời khuyên cụ thể.
-    4. Giọng điệu vui vẻ, tiếng Việt.
-  `;
-
+  const recentTx = transactions.slice(-30).map(t => `${t.date}: ${t.description} - ${t.amount}`).join('\n');
+  const prompt = `Phân tích chi tiêu (tiếng Việt, ngắn gọn): \n${recentTx}`;
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
-    return response.text || "Không thể phân tích lúc này.";
+    const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt });
+    return response.text || "Chưa có dữ liệu.";
   } catch (error) {
-    console.error("Analysis Error:", error);
-    return "Lỗi kết nối khi phân tích.";
+    return "Lỗi kết nối AI.";
   }
 };

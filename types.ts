@@ -37,8 +37,9 @@ export interface Transaction {
   date: string; // ISO date string
   type: TransactionType;
   status?: 'PENDING' | 'CONFIRMED';
-  person?: string;   // New field: Who?
-  location?: string; // New field: Where?
+  person?: string;
+  location?: string;
+  paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD';
 }
 
 export interface ChatMessage {
