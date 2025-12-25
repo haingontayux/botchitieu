@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, TransactionType, UserSettings, CategoryIcons } from '../types';
 import { formatCurrency } from '../services/geminiService';
@@ -140,12 +141,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
                     <div key={t.id} className="relative pl-6">
                          <div className={`absolute -left-[21px] top-1.5 w-3 h-3 rounded-full border-2 border-white shadow-sm ${t.type === TransactionType.INCOME ? 'bg-green-500' : 'bg-red-500'}`}></div>
                          
-                         <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
-                             <div className="min-w-0 pr-2">
+                         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                             {/* Icon Section */}
+                             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-xl shrink-0 border border-slate-100">
+                                {CategoryIcons[t.category] || '📦'}
+                             </div>
+
+                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-slate-800 text-sm truncate">{t.description}</p>
-                                <div className="flex items-center gap-2 mt-1 overflow-hidden">
-                                    <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 whitespace-nowrap">{t.category}</span>
-                                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{new Date(t.date).toLocaleDateString('vi-VN')}</span>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-slate-400 font-medium">{new Date(t.date).toLocaleDateString('vi-VN')}</span>
+                                    <span className="text-[10px] text-slate-300">•</span>
+                                    <span className="text-[10px] text-slate-500 font-medium truncate">{t.category}</span>
                                 </div>
                              </div>
                              <span className={`font-bold text-sm shrink-0 ${t.type === TransactionType.INCOME ? 'text-green-600' : 'text-slate-900'}`}>

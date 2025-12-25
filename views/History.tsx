@@ -134,6 +134,18 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
   const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined);
   const [displayLimit, setDisplayLimit] = useState(7);
   
+  // Reset filterCategory khi chuyển Tab loại giao dịch
+  useEffect(() => {
+    setFilterCategory('all');
+  }, [filterType]);
+
+  // Lấy danh sách danh mục hiển thị dựa trên Tab đang chọn
+  const availableCategories = useMemo(() => {
+      if (filterType === 'EXPENSE') return EXPENSE_CATEGORIES;
+      if (filterType === 'INCOME') return INCOME_CATEGORIES;
+      return Object.values(Category);
+  }, [filterType]);
+
   const groupedData = useMemo(() => {
     let filtered = transactions.filter(t => {
         // Lọc theo Tab (Loại giao dịch)
@@ -211,7 +223,7 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
             className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-500 outline-none shrink-0 shadow-sm"
          >
             <option value="all">📁 Tất cả danh mục</option>
-            {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
+            {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
          </select>
          <input 
             type="date" 
@@ -237,8 +249,8 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
             const netAmount = group.income - group.expense;
             return (
             <div key={group.date} className="space-y-2 animate-fade-in">
-                {/* Date Header with Daily Totals & NET Calculation */}
-                <div className="flex items-center justify-between px-3 sticky top-[60px] z-20 bg-slate-50/95 backdrop-blur-md py-2.5 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] border border-slate-100 transition-all">
+                {/* Date Header with Simplified NET Total */}
+                <div className="flex items-center justify-between px-3 sticky top-[60px] z-20 bg-slate-50/95 backdrop-blur-md py-3 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] border border-slate-100 transition-all">
                     <div className="flex flex-col">
                         <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
                             {new Date(group.date).toLocaleDateString('vi-VN', { weekday: 'long' })}
@@ -249,30 +261,11 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                     </div>
                     
                     <div className="flex items-center gap-2">
-                        {/* Summary Block */}
-                        <div className="flex flex-col items-end space-y-0.5">
-                            {/* Only show detail breakdown if viewing ALL */}
-                            {filterType === 'ALL' && (
-                                <div className="flex gap-2 text-[9px] font-bold">
-                                    {group.income > 0 && <span className="text-green-600">+{formatCurrency(group.income)}</span>}
-                                    {group.expense > 0 && <span className="text-red-500">-{formatCurrency(group.expense)}</span>}
-                                </div>
-                            )}
-                            
-                            {/* NET Calculation based on Filter */}
-                            {filterType === 'ALL' ? (
-                                <div className={`text-xs font-black ${netAmount >= 0 ? 'text-indigo-600' : 'text-orange-500'}`}>
-                                    {netAmount > 0 ? '+' : ''}{formatCurrency(netAmount)}
-                                </div>
-                            ) : filterType === 'EXPENSE' ? (
-                                <div className="text-xs font-black text-red-500">
-                                    -{formatCurrency(group.expense)}
-                                </div>
-                            ) : (
-                                <div className="text-xs font-black text-green-600">
-                                    +{formatCurrency(group.income)}
-                                </div>
-                            )}
+                        {/* Summary Block - Chỉ hiện kết quả to */}
+                        <div className="flex flex-col items-end">
+                            <div className={`text-lg font-black tracking-tight ${netAmount >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                                {netAmount > 0 ? '+' : ''}{formatCurrency(netAmount)}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -282,39 +275,39 @@ export const History: React.FC<HistoryProps> = ({ transactions, onDelete, onEdit
                     {group.transactions.map(t => (
                         <div key={t.id} className="relative w-full overflow-hidden rounded-2xl shadow-sm border border-slate-100 bg-white group">
                             <div className="flex w-full overflow-x-auto snap-x snap-mandatory no-scrollbar" style={{ scrollBehavior: 'smooth' }}>
-                                {/* Main Content (Swipeable) */}
-                                <div className="min-w-full snap-start bg-white p-4 flex items-center justify-between relative">
+                                {/* Main Content (Swipeable) - Updated for bigger size */}
+                                <div className="min-w-full snap-start bg-white p-5 flex items-center justify-between relative">
                                     {!t.isSynced && <div className="absolute top-0 right-0 w-2 h-2 bg-amber-400 rounded-full m-1.5" title="Chưa đồng bộ"></div>}
-                                    <div className="flex items-center gap-3 min-w-0 pr-4">
-                                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-xl shrink-0">{CategoryIcons[t.category] || '📦'}</div>
+                                    <div className="flex items-center gap-4 min-w-0 pr-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-2xl shrink-0">{CategoryIcons[t.category] || '📦'}</div>
                                         <div className="min-w-0">
-                                            <p className="font-bold text-slate-800 text-sm truncate">{t.description}</p>
-                                            <div className="flex flex-wrap gap-1 mt-0.5">
-                                                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">{t.category}</span>
-                                                {t.person && <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">👤 {t.person}</span>}
-                                                {t.location && <span className="text-[9px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">📍 {t.location}</span>}
+                                            <p className="font-bold text-slate-800 text-base truncate">{t.description}</p>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                <span className="text-xs text-slate-400 font-bold whitespace-nowrap">{t.category}</span>
+                                                {t.person && <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">👤 {t.person}</span>}
+                                                {t.location && <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">📍 {t.location}</span>}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 shrink-0">
-                                        <span className={`font-black text-sm whitespace-nowrap ${t.type === TransactionType.INCOME ? 'text-green-600' : 'text-slate-900'}`}>
+                                        <span className={`font-black text-base whitespace-nowrap ${t.type === TransactionType.INCOME ? 'text-green-600' : 'text-slate-900'}`}>
                                             {t.type === TransactionType.INCOME ? '+' : '-'}{formatCurrency(t.amount)}
                                         </span>
                                         <div className="text-slate-300 md:hidden flex items-center">
-                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Slide Actions */}
                                 <div className="flex snap-end">
-                                    <button onClick={() => handleEditClick(t)} className="w-16 bg-blue-500 text-white flex flex-col items-center justify-center">
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                        <span className="text-[9px] font-bold mt-1">Sửa</span>
+                                    <button onClick={() => handleEditClick(t)} className="w-20 bg-blue-500 text-white flex flex-col items-center justify-center">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                        <span className="text-[10px] font-bold mt-1">Sửa</span>
                                     </button>
-                                    <button onClick={() => onDelete(t.id)} className="w-16 bg-red-500 text-white flex flex-col items-center justify-center">
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        <span className="text-[9px] font-bold mt-1">Xóa</span>
+                                    <button onClick={() => onDelete(t.id)} className="w-20 bg-red-500 text-white flex flex-col items-center justify-center">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        <span className="text-[10px] font-bold mt-1">Xóa</span>
                                     </button>
                                 </div>
                             </div>

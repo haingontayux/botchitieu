@@ -94,32 +94,33 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, setCurrentTab,
       }
   };
 
+  // Increased icon size to w-7 h-7
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
     )},
     { id: 'statistics', label: 'Báo cáo', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
     )},
     { id: 'chat', label: 'Bot AI', isBot: true, icon: (
-      <svg className="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+      <svg className="w-7 h-7 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
     )},
     { id: 'history', label: 'Lịch sử', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     )},
     { id: 'settings', label: 'Thêm', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
     )},
   ];
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 flex justify-between items-center z-40 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] select-none h-16 px-4"
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 flex justify-between items-center z-40 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] select-none h-[72px] px-4"
            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {navItems.map((item) => {
           if (item.isBot) {
               return (
-                <div key={item.id} className="flex flex-col items-center justify-center w-14 h-full">
+                <div key={item.id} className="flex flex-col items-center justify-center w-16 h-full">
                     <button
                         onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
                         onTouchEnd={stopRecording}
@@ -128,15 +129,16 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, setCurrentTab,
                         onMouseUp={stopRecording}
                         onMouseLeave={stopRecording}
                         onContextMenu={(e) => e.preventDefault()}
-                        className={`flex items-center justify-center rounded-full transition-all duration-200 
-                            ${isRecording || isInitializing ? 'bg-red-500 scale-110 ring-4 ring-red-100' : (currentTab === 'chat' ? 'bg-brand-600' : 'bg-slate-100')}
-                            ${(currentTab === 'chat' || isRecording || isInitializing) ? 'text-white' : 'text-slate-400'}
+                        className={`flex items-center justify-center rounded-full transition-all duration-200 shadow-sm
+                            ${isRecording || isInitializing 
+                                ? 'bg-red-500 scale-110 ring-4 ring-red-100 text-white' 
+                                : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95'
+                            }
                         `}
-                        style={{ width: '44px', height: '44px', touchAction: 'none' }}
+                        style={{ width: '52px', height: '52px', touchAction: 'none' }}
                     >
                         {item.icon}
                     </button>
-                    {/* Không có nhãn Bot AI ở đây theo yêu cầu */}
                 </div>
               );
           }
@@ -145,14 +147,14 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentTab, setCurrentTab,
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`flex flex-col items-center justify-center w-14 h-full transition-all active:scale-90 ${
+              className={`flex flex-col items-center justify-center w-16 h-full transition-all active:scale-90 ${
                 currentTab === item.id ? 'text-brand-600' : 'text-slate-400'
               }`}
             >
               <div className={`p-1.5 rounded-xl transition-colors ${currentTab === item.id ? 'bg-brand-50' : 'bg-transparent'}`}>
                 {item.icon}
               </div>
-              <span className={`text-[9px] font-bold tracking-tight mt-0.5 ${currentTab === item.id ? 'opacity-100' : 'opacity-60'}`}>
+              <span className={`text-[10px] font-bold tracking-tight mt-0.5 ${currentTab === item.id ? 'opacity-100' : 'opacity-60'}`}>
                 {item.label}
               </span>
             </button>

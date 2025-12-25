@@ -17,11 +17,93 @@ const THEMES = [
   { id: 'blue', name: 'Xanh dương', bg: 'bg-blue-600' },
 ];
 
+const APPS_SCRIPT_CODE = `
+// 1. Vào Google Sheet -> Extensions -> Apps Script
+// 2. Paste code này vào file Code.gs
+// 3. Nhấn Deploy -> New Deployment -> Chọn Web App
+// 4. Execute as: Me
+// 5. Who has access: Anyone (quan trọng)
+// 6. Copy URL dán vào app
+
+function doGet(e) {
+  return handleRequest(e);
+}
+
+function doPost(e) {
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
+  const lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  
+  try {
+    const doc = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = doc.getSheetByName('Transactions');
+    if (!sheet) {
+      sheet = doc.insertSheet('Transactions');
+      sheet.appendRow(['ID', 'Date', 'Amount', 'Category', 'Description', 'Type', 'Person', 'Location', 'PaymentMethod', 'Status']);
+    }
+
+    // Handle GET (Sync Down)
+    if (!e.postData) {
+      const data = sheet.getDataRange().getValues();
+      const headers = data.shift();
+      const transactions = data.map(row => ({
+        id: row[0], date: row[1], amount: row[2], category: row[3],
+        description: row[4], type: row[5], person: row[6],
+        location: row[7], paymentMethod: row[8], status: row[9]
+      })).filter(t => t.id);
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', data: transactions }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Handle POST (Sync Up)
+    const body = JSON.parse(e.postData.contents);
+    const action = body.action;
+    const item = body.data;
+
+    if (action === 'ADD') {
+      sheet.appendRow([item.id, item.date, item.amount, item.category, item.description, item.type, item.person, item.location, item.paymentMethod, item.status]);
+    } 
+    else if (action === 'UPDATE') {
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] == item.id) {
+          sheet.getRange(i + 1, 1, 1, 10).setValues([[item.id, item.date, item.amount, item.category, item.description, item.type, item.person, item.location, item.paymentMethod, item.status]]);
+          break;
+        }
+      }
+    } 
+    else if (action === 'DELETE') {
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] == item.id) {
+          sheet.deleteRow(i + 1);
+          break;
+        }
+      }
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (e) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: e.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+`.trim();
+
 export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpdate }) => {
   const [localSettings, setLocalSettings] = useState<UserSettings>(settings);
   const [isSaved, setIsSaved] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showScriptCode, setShowScriptCode] = useState(false);
 
   // Đồng bộ props vào state khi props thay đổi (fix lỗi không hiện dữ liệu mới)
   useEffect(() => {
@@ -52,6 +134,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
           alert(res ? `✅ Kết nối OK! (${res.length} giao dịch)` : "❌ Thất bại.");
       } catch(e) { alert("❌ Lỗi mạng."); }
       setIsTesting(false);
+  };
+
+  const copyScriptCode = () => {
+      navigator.clipboard.writeText(APPS_SCRIPT_CODE);
+      alert("Đã copy code vào bộ nhớ đệm!");
   };
 
   return (
@@ -135,20 +222,48 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
       {/* Cloud Settings */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
         <h3 className="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Đồng bộ Cloud (Tùy chọn)</h3>
-         <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Apps Script URL</label>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                value={localSettings.appScriptUrl || ''}
-                onChange={(e) => setLocalSettings({...localSettings, appScriptUrl: e.target.value})}
-                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 text-sm"
-                placeholder="https://script.google.com/..."
-              />
-              <button onClick={handleTestConnection} disabled={isTesting} className="px-4 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
-                 Check
-              </button>
-            </div>
+         <div className="space-y-3">
+             <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Apps Script URL</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={localSettings.appScriptUrl || ''}
+                    onChange={(e) => setLocalSettings({...localSettings, appScriptUrl: e.target.value})}
+                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 text-sm"
+                    placeholder="https://script.google.com/..."
+                  />
+                  <button onClick={handleTestConnection} disabled={isTesting} className="px-4 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+                     Check
+                  </button>
+                </div>
+             </div>
+
+             {/* Script Code Toggle */}
+             <div>
+                 <button 
+                    onClick={() => setShowScriptCode(!showScriptCode)}
+                    className="text-xs font-bold text-brand-600 underline"
+                 >
+                    {showScriptCode ? 'Ẩn mã Apps Script' : 'Hiện mã Apps Script để tạo Server'}
+                 </button>
+                 
+                 {showScriptCode && (
+                     <div className="mt-2 relative">
+                         <div className="absolute top-2 right-2">
+                             <button onClick={copyScriptCode} className="bg-brand-600 text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm hover:bg-brand-700">Copy Code</button>
+                         </div>
+                         <textarea 
+                            readOnly 
+                            value={APPS_SCRIPT_CODE} 
+                            className="w-full h-64 p-3 bg-slate-800 text-green-400 font-mono text-xs rounded-xl"
+                         />
+                         <p className="text-[10px] text-slate-500 mt-1 italic">
+                            * Làm theo hướng dẫn ở 6 dòng đầu của đoạn code trên để cài đặt server.
+                         </p>
+                     </div>
+                 )}
+             </div>
          </div>
       </div>
 
