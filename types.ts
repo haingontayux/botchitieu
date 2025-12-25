@@ -30,6 +30,15 @@ export const CategoryIcons: Record<string, string> = {
   'Khác': '📦'
 };
 
+export const EXPENSE_CATEGORIES = [
+  Category.FOOD, Category.TRANSPORT, Category.SHOPPING, Category.BILLS, 
+  Category.ENTERTAINMENT, Category.HEALTH, Category.EDUCATION, Category.OTHER
+];
+
+export const INCOME_CATEGORIES = [
+  Category.SALARY, Category.INVESTMENT, Category.OTHER
+];
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -55,7 +64,8 @@ export interface ChatMessage {
 }
 
 export interface UserSettings {
-  initialBalance: number;
+  initialBalance: number; // Số dư Tiền mặt đầu kỳ
+  initialBankBalance: number; // Số dư Ngân hàng đầu kỳ
   dailyLimit: number;
   appScriptUrl?: string;
   telegramChatId?: string;

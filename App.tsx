@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
@@ -133,7 +134,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+    // Sử dụng h-[100dvh] để đảm bảo chiều cao đúng trên mobile (tránh bị thanh địa chỉ che)
+    <div className="flex h-[100dvh] bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} />
       
       <main className="flex-1 md:ml-72 h-full relative overflow-hidden flex flex-col">
@@ -146,16 +148,32 @@ const App: React.FC = () => {
            {isLoading && <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar" 
-             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 100px)' }}>
+        {/* Tăng padding bottom lên 150px để đảm bảo nội dung cuối cùng vượt qua khỏi thanh menu */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar w-full" 
+             style={{ paddingBottom: '150px' }}>
            <div className="max-w-4xl mx-auto h-full">
             {currentTab === 'dashboard' && (
-              <Dashboard transactions={transactions} settings={settings} onProcessPending={handleProcessPending} isProcessingId={isProcessingPendingId} onUpdateSettings={handleSaveSettings} />
+              <Dashboard 
+                transactions={transactions} 
+                settings={settings} 
+                onProcessPending={handleProcessPending} 
+                isProcessingId={isProcessingPendingId} 
+                onUpdateSettings={handleSaveSettings}
+                onViewHistory={() => setCurrentTab('history')} 
+              />
             )}
             {currentTab === 'statistics' && <Statistics transactions={transactions} />}
             {currentTab === 'chat' && (
               <div className="h-full animate-fade-in">
-                 <BotChat chatHistory={chatHistory} setChatHistory={setChatHistory} addTransactions={addTransactions} transactions={transactions} pendingAudio={pendingAudio} clearPendingAudio={() => setPendingAudio(null)} />
+                 <BotChat 
+                    chatHistory={chatHistory} 
+                    setChatHistory={setChatHistory} 
+                    addTransactions={addTransactions} 
+                    onEditTransaction={editTransaction}
+                    transactions={transactions} 
+                    pendingAudio={pendingAudio} 
+                    clearPendingAudio={() => setPendingAudio(null)} 
+                 />
               </div>
             )}
             {currentTab === 'history' && (

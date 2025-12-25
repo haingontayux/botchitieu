@@ -1,3 +1,4 @@
+
 import { Transaction, ChatMessage, UserSettings, TransactionType } from '../types';
 
 const TRANSACTIONS_KEY = 'finbot_transactions';
@@ -91,6 +92,7 @@ export const getSettings = (): UserSettings => {
 
     return {
       initialBalance: parsed.initialBalance || 0,
+      initialBankBalance: parsed.initialBankBalance || 0,
       dailyLimit: parsed.dailyLimit || 500000,
       appScriptUrl: parsed.appScriptUrl || '',
       telegramChatId: parsed.telegramChatId || '',
@@ -102,6 +104,7 @@ export const getSettings = (): UserSettings => {
   } catch (error) {
     return { 
         initialBalance: 0, 
+        initialBankBalance: 0,
         dailyLimit: 500000, 
         appScriptUrl: '', 
         telegramChatId: '', 
@@ -141,6 +144,7 @@ export const syncFromCloud = async (scriptUrl: string): Promise<Transaction[] | 
         status: item.status || 'CONFIRMED',
         person: item.person || undefined, 
         location: item.location || undefined,
+        paymentMethod: item.paymentMethod || 'CASH',
         isSynced: true // Data from cloud is always synced
       }));
       

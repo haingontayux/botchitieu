@@ -32,15 +32,30 @@ const getApiKey = (): string | undefined => {
     return process.env.API_KEY;
 };
 
-const generateSystemInstruction = (historyContext: string) => `
+const generateSystemInstruction = (historyContext: string) => {
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const dayBeforeYesterday = new Date(today); dayBeforeYesterday.setDate(today.getDate() - 2);
+
+  const formatDate = (d: Date) => d.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  return `
 Bạn là FinBot, trợ lý quản lý tài chính thông minh. 
-Hôm nay là ngày: ${new Date().toLocaleDateString('vi-VN')}
+
+NGỮ CẢNH THỜI GIAN (Rất quan trọng):
+- Hôm nay: ${formatDate(today)} (${today.toLocaleDateString('vi-VN', { weekday: 'long' })})
+- Hôm qua: ${formatDate(yesterday)}
+- Hôm kia: ${formatDate(dayBeforeYesterday)}
 
 NHIỆM VỤ: Trích xuất thông tin chi tiêu từ tin nhắn người dùng.
+Nếu người dùng nói "hôm qua", "tối qua", "sáng nay", hãy mapping chính xác vào ngày tương ứng ở trên.
 
-QUY TẮC:
+QUY TẮC QUAN TRỌNG:
 1. Số tiền: "k" = nghìn, "tr" = triệu. (VD: 50k = 50000).
-2. Hình thức thanh toán: "ck"/"chuyển khoản" -> 'TRANSFER', "thẻ" -> 'CARD', còn lại 'CASH'.
+2. HÌNH THỨC THANH TOÁN (paymentMethod):
+   - Nếu tin nhắn có chứa bất kỳ từ nào sau đây: "ck", "chuyển khoản", "banking", "bank", "qr", "thẻ", "quẹt thẻ", "visa", "app" => BẮT BUỘC gán giá trị 'TRANSFER'.
+   - CHÚ Ý: "ck" là viết tắt của "chuyển khoản".
+   - Chỉ khi KHÔNG CÓ các từ khóa trên mới để là 'CASH'.
 3. Danh mục: "Ăn uống", "Di chuyển", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Giáo dục", "Lương", "Đầu tư", "Khác".
 4. TRÍCH XUẤT NGỮ CẢNH:
    - "person": Chi cho ai? Ai đưa tiền? (VD: "cho mẹ", "lương của vợ", "con đóng học").
@@ -66,6 +81,7 @@ TRẢ VỀ JSON:
   "analysisAnswer": string | null
 }
 `;
+};
 
 export const parseTransactionFromMultimodal = async (
   input: { text?: string; imageBase64?: string; audioBase64?: string; mimeType?: string },
@@ -135,14 +151,38 @@ export const parseTransactionFromMultimodal = async (
 export const generateBotResponse = (data: ParsedTransactionData): string => {
   let method = "";
   if (data.paymentMethod === 'TRANSFER') method = " (🏦 CK)";
-  if (data.paymentMethod === 'CARD') method = " (💳 Thẻ)";
+  else if (data.paymentMethod === 'CARD') method = " (💳 Thẻ)";
+  else method = " (💵 TM)";
   
   const context = [];
   if (data.person) context.push(`👤 ${data.person}`);
   if (data.location) context.push(`📍 ${data.location}`);
   const contextStr = context.length > 0 ? `\n${context.join(' • ')}` : '';
 
-  return `✅ Đã lưu: **${formatCurrency(data.amount)}**\n📂 ${data.category} • 📝 ${data.description}${method}${contextStr}`;
+  // Format date for response
+  // FIX: Handle Invalid Date gracefully
+  let dateObj = new Date(data.date);
+  if (isNaN(dateObj.getTime())) {
+      dateObj = new Date(); // Fallback to today if invalid
+  }
+
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  const dayBeforeYesterday = new Date(); dayBeforeYesterday.setDate(today.getDate() - 2);
+
+  // Reset hours for comparison
+  const d = new Date(dateObj); d.setHours(0,0,0,0);
+  const t = new Date(today); t.setHours(0,0,0,0);
+  const y = new Date(yesterday); y.setHours(0,0,0,0);
+  const by = new Date(dayBeforeYesterday); by.setHours(0,0,0,0);
+  
+  let dateStr = "";
+  if (d.getTime() === t.getTime()) dateStr = "Hôm nay";
+  else if (d.getTime() === y.getTime()) dateStr = "Hôm qua";
+  else if (d.getTime() === by.getTime()) dateStr = "Hôm kia";
+  else dateStr = dateObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+
+  return `✅ Đã lưu (${dateStr}): **${formatCurrency(data.amount)}**\n📂 ${data.category} • 📝 ${data.description}${method}${contextStr}`;
 };
 
 export const analyzeFinancialAdvice = async (transactions: Transaction[]): Promise<string> => {

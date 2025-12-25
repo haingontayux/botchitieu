@@ -9,6 +9,7 @@ interface DashboardProps {
   onProcessPending?: (t: Transaction) => void;
   isProcessingId?: string | null;
   onUpdateSettings?: (s: UserSettings) => void;
+  onViewHistory?: () => void;
 }
 
 const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
@@ -28,15 +29,19 @@ const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
   return <>{formatCurrency(displayValue)}</>;
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, onProcessPending, isProcessingId, onUpdateSettings }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, onProcessPending, isProcessingId, onUpdateSettings, onViewHistory }) => {
   const [isEditingBalance, setIsEditingBalance] = useState(false);
   const [newBalanceInput, setNewBalanceInput] = useState<string>('');
 
   const confirmedTransactions = useMemo(() => transactions.filter(t => t.status !== 'PENDING'), [transactions]);
   const pendingTransactions = useMemo(() => transactions.filter(t => t.status === 'PENDING'), [transactions]);
 
-  const recentTransactions = useMemo(() => {
-      return [...confirmedTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  // CHỈ HIỂN THỊ GIAO DỊCH HÔM NAY
+  const todayTransactions = useMemo(() => {
+      const today = new Date().toISOString().split('T')[0];
+      return [...confirmedTransactions]
+        .filter(t => t.date === today)
+        .reverse();
   }, [confirmedTransactions]);
 
   const stats = useMemo(() => {
@@ -45,12 +50,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
     const now = new Date();
     const currentMonthTx = confirmedTransactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
     
+    // Tính toán số dư tiền mặt (Ví)
+    // Lọc các giao dịch có paymentMethod là 'CASH' (mặc định nếu null)
+    const cashTransactions = confirmedTransactions.filter(t => !t.paymentMethod || t.paymentMethod === 'CASH');
+    const cashIncome = cashTransactions.filter(t => t.type === TransactionType.INCOME).reduce((acc, t) => acc + t.amount, 0);
+    const cashExpense = cashTransactions.filter(t => t.type === TransactionType.EXPENSE).reduce((acc, t) => acc + t.amount, 0);
+    const cashBalance = (settings.initialBalance || 0) + cashIncome - cashExpense;
+
     return {
       monthIncome: currentMonthTx.filter(t => t.type === TransactionType.INCOME).reduce((acc, t) => acc + t.amount, 0),
       monthExpense: currentMonthTx.filter(t => t.type === TransactionType.EXPENSE).reduce((acc, t) => acc + t.amount, 0),
-      totalBalance: (settings.initialBalance || 0) + totalIncome - totalExpense,
-      totalIncomeLifetime: totalIncome,
-      totalExpenseLifetime: totalExpense
+      totalBalance: cashBalance, // Chỉ hiển thị số dư ví
+      totalIncomeLifetime: cashIncome, // Dùng để tính toán lại số dư đầu kỳ khi sửa
+      totalExpenseLifetime: cashExpense // Dùng để tính toán lại số dư đầu kỳ khi sửa
     };
   }, [confirmedTransactions, settings]);
 
@@ -64,6 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
       if (!onUpdateSettings) return;
       const targetBalance = Number(newBalanceInput.replace(/,/g, ''));
       if (isNaN(targetBalance)) return;
+      // Tính lại số dư đầu kỳ dựa trên số dư mục tiêu và tổng thu chi hiện tại (CASH only)
       onUpdateSettings({ ...settings, initialBalance: targetBalance - (stats.totalIncomeLifetime - stats.totalExpenseLifetime) });
       setIsEditingBalance(false);
   };
@@ -71,7 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
   const dailyProgress = Math.min((todayExpense / settings.dailyLimit) * 100, 100);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
+    <div className="space-y-6 animate-fade-in pb-24 md:pb-0">
       
       {pendingTransactions.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-6 shadow-sm animate-pulse-slow">
@@ -92,10 +105,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
         </div>
       )}
 
+      {/* Main Balance Card (Wallet Only) */}
       <div onClick={() => { setNewBalanceInput(stats.totalBalance.toLocaleString('en-US')); setIsEditingBalance(true); }} className="bg-gradient-to-r from-brand-600 to-brand-500 rounded-3xl p-8 text-white shadow-xl shadow-brand-500/30 relative overflow-hidden cursor-pointer transform transition-all hover:scale-[1.01]">
          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
          <div className="relative z-10">
-            <p className="text-brand-100 font-medium mb-1">Tổng số dư</p>
+            <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">💵</span>
+                <p className="text-brand-100 font-medium">Tiền mặt (Ví)</p>
+            </div>
             <h2 className="text-4xl font-bold tracking-tight"><AnimatedNumber value={stats.totalBalance} /></h2>
             <div className="mt-8 flex items-center space-x-8">
               <div><p className="text-brand-100 text-sm">Thu nhập tháng</p><p className="text-xl font-semibold"><AnimatedNumber value={stats.monthIncome} /></p></div>
@@ -107,7 +124,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
       {isEditingBalance && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsEditingBalance(false)}>
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold text-slate-800 mb-4">Sửa số dư</h3>
+                <h3 className="text-xl font-bold text-slate-800 mb-4">Sửa số dư Ví</h3>
                 <form onSubmit={saveNewBalance}>
                     <input autoFocus type="text" value={newBalanceInput} onChange={e => setNewBalanceInput(Number(e.target.value.replace(/,/g, '').replace(/\D/g, '')).toLocaleString('en-US'))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-bold mb-6 focus:ring-2 focus:ring-brand-500" />
                     <div className="flex gap-3">
@@ -130,14 +147,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
       </div>
 
       <div className="space-y-4">
-         <h3 className="font-bold text-slate-800 ml-1">Hoạt động gần đây</h3>
-         {recentTransactions.length === 0 ? (
+         <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 ml-1">Hoạt động hôm nay</h3>
+            {onViewHistory && (
+                <button onClick={onViewHistory} className="text-xs font-bold text-brand-600 px-3 py-1 rounded-lg hover:bg-brand-50 transition-colors">
+                    Xem tất cả &rarr;
+                </button>
+            )}
+         </div>
+         
+         {todayTransactions.length === 0 ? (
              <div className="bg-white p-6 rounded-2xl border border-slate-100 text-center text-slate-400 text-sm">
-                 Chưa có giao dịch nào
+                 Hôm nay chưa có giao dịch nào
              </div>
          ) : (
-             <div className="pl-4 border-l-2 border-slate-200 space-y-6">
-                 {recentTransactions.map(t => (
+             <div className="pl-4 border-l-2 border-slate-200 space-y-3">
+                 {todayTransactions.map(t => (
                     <div key={t.id} className="relative pl-6">
                          <div className={`absolute -left-[21px] top-1.5 w-3 h-3 rounded-full border-2 border-white shadow-sm ${t.type === TransactionType.INCOME ? 'bg-green-500' : 'bg-red-500'}`}></div>
                          
@@ -152,7 +177,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, settings, on
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-[10px] text-slate-400 font-medium">{new Date(t.date).toLocaleDateString('vi-VN')}</span>
                                     <span className="text-[10px] text-slate-300">•</span>
-                                    <span className="text-[10px] text-slate-500 font-medium truncate">{t.category}</span>
+                                    {/* Hiển thị icon nguồn tiền */}
+                                    <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1 rounded flex items-center gap-1">
+                                        {(t.paymentMethod === 'TRANSFER' || t.paymentMethod === 'CARD') ? '🏦 Bank' : '💵 Ví'}
+                                    </span>
                                 </div>
                              </div>
                              <span className={`font-bold text-sm shrink-0 ${t.type === TransactionType.INCOME ? 'text-green-600' : 'text-slate-900'}`}>

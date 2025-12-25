@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { Transaction, TransactionType, CategoryIcons } from '../types';
 import { formatCurrency, analyzeFinancialAdvice } from '../services/geminiService';
@@ -250,27 +251,29 @@ export const Statistics: React.FC<StatisticsProps> = ({ transactions }) => {
            </div>
 
            {categoryData.length > 0 ? (
-             <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie 
-                        data={categoryData} 
-                        cx="50%" cy="50%" 
-                        innerRadius={60} outerRadius={80} 
-                        paddingAngle={5} 
-                        dataKey="value"
-                        onClick={(data) => setSelectedCategory(data.name)}
-                        cursor="pointer"
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  </PieChart>
-                </ResponsiveContainer>
+             <div className="flex flex-col">
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie 
+                          data={categoryData} 
+                          cx="50%" cy="50%" 
+                          innerRadius={60} outerRadius={80} 
+                          paddingAngle={5} 
+                          dataKey="value"
+                          onClick={(data) => setSelectedCategory(data.name)}
+                          cursor="pointer"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
                 
-                <div className="mt-4 space-y-2 max-h-40 overflow-y-auto no-scrollbar">
+                <div className="mt-4 space-y-2 max-h-60 overflow-y-auto no-scrollbar">
                   {categoryData.map((entry, index) => (
                     <button 
                         key={index} 
@@ -291,7 +294,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ transactions }) => {
                 </div>
              </div>
            ) : (
-             <div className="flex items-center justify-center h-full text-slate-400 flex-col gap-2">
+             <div className="flex items-center justify-center h-full text-slate-400 flex-col gap-2 min-h-[300px]">
                 <span className="text-3xl opacity-30">📊</span>
                 <span className="text-sm">Chưa có dữ liệu {chartType === 'EXPENSE' ? 'chi' : 'thu'}</span>
              </div>

@@ -3,11 +3,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, Transaction, TransactionType } from '../types';
 import { parseTransactionFromMultimodal, generateBotResponse } from '../services/geminiService';
 import { v4 as uuidv4 } from 'uuid';
+import { TransactionModal } from '../components/TransactionModal';
 
 interface BotChatProps {
   chatHistory: ChatMessage[];
   setChatHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   addTransactions: (t: Transaction | Transaction[]) => void;
+  onEditTransaction: (t: Transaction) => void;
   transactions: Transaction[];
   pendingAudio?: { blob: Blob, mimeType: string } | null;
   clearPendingAudio?: () => void;
@@ -16,7 +18,8 @@ interface BotChatProps {
 export const BotChat: React.FC<BotChatProps> = ({ 
     chatHistory, 
     setChatHistory, 
-    addTransactions, 
+    addTransactions,
+    onEditTransaction,
     transactions,
     pendingAudio,
     clearPendingAudio
@@ -24,8 +27,12 @@ export const BotChat: React.FC<BotChatProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isInitializingMic, setIsInitializingMic] = useState(false); 
+  const [isInitializingMic, setIsInitializingMic] = useState(false);
   
+  // Edit Modal State
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   
@@ -110,7 +117,8 @@ export const BotChat: React.FC<BotChatProps> = ({
                     type: tData.type as TransactionType,
                     person: tData.person,
                     location: tData.location,
-                    status: 'CONFIRMED'
+                    status: 'CONFIRMED',
+                    paymentMethod: tData.paymentMethod || 'CASH' // Đã sửa: Gán paymentMethod từ AI
                 };
                 
                 transactionsToAdd.push(newTransaction);
@@ -120,7 +128,7 @@ export const BotChat: React.FC<BotChatProps> = ({
                     role: 'bot',
                     content: generateBotResponse(tData),
                     timestamp: Date.now(),
-                    relatedTransactionId: newTransaction.id
+                    relatedTransactionId: newTransaction.id // Link message to transaction
                 });
              }
           });
@@ -229,6 +237,16 @@ export const BotChat: React.FC<BotChatProps> = ({
     }
   };
 
+  const handleMessageClick = (msg: ChatMessage) => {
+      if (msg.role === 'bot' && msg.relatedTransactionId) {
+          const tx = transactions.find(t => t.id === msg.relatedTransactionId);
+          if (tx) {
+              setEditingTransaction(tx);
+              setIsModalOpen(true);
+          }
+      }
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 rounded-3xl overflow-hidden shadow-sm border border-slate-100 relative">
       {/* Header */}
@@ -258,7 +276,13 @@ export const BotChat: React.FC<BotChatProps> = ({
 
         {chatHistory.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
-            <div className={`max-w-[85%] px-4 py-2.5 text-sm shadow-sm relative ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-none' : 'bg-white text-slate-700 rounded-2xl rounded-tl-none border border-slate-100'}`}>
+            <div 
+                onClick={() => handleMessageClick(msg)}
+                className={`max-w-[85%] px-4 py-2.5 text-sm shadow-sm relative transition-transform active:scale-95
+                    ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-none' : 'bg-white text-slate-700 rounded-2xl rounded-tl-none border border-slate-100'}
+                    ${msg.relatedTransactionId ? 'cursor-pointer hover:bg-slate-50 ring-2 ring-transparent hover:ring-indigo-100' : ''}
+                `}
+            >
               <div className="leading-relaxed" dangerouslySetInnerHTML={{__html: msg.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br/>')}}></div>
               {msg.audioBase64 && (
                 <div className="mt-2 p-1 bg-white/10 rounded-lg">
@@ -326,6 +350,18 @@ export const BotChat: React.FC<BotChatProps> = ({
             )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {isModalOpen && editingTransaction && (
+          <TransactionModal 
+              initialData={editingTransaction}
+              onClose={() => setIsModalOpen(false)}
+              onSave={(t) => {
+                  onEditTransaction(t);
+                  // Update chat message content if needed, but simple re-render of transactions handles logic
+              }}
+          />
+      )}
     </div>
   );
 };
