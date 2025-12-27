@@ -18,20 +18,116 @@ const THEMES = [
   { id: 'blue', name: 'Xanh dương', bg: 'bg-blue-600' },
 ];
 
+// MÃ APPS SCRIPT ĐÃ ĐƯỢC NÂNG CẤP ĐỂ CHỐNG TRÙNG LẶP
 const APPS_SCRIPT_CODE = `
-// Code App Script here (giữ nguyên như cũ, chỉ thay đổi text hiển thị)
-// ... (nội dung code cũ)
-function doGet(e) { return handleRequest(e); }
-function doPost(e) { return handleRequest(e); }
-function handleRequest(e) {
-  // ... Code xử lý
+// --- COPY TOÀN BỘ CODE DƯỚI ĐÂY ---
+const SHEET_NAME = 'Transactions';
+const HEADERS = ['ID', 'Date', 'Amount', 'Type', 'Category', 'Description', 'Person', 'Location', 'Payment Method', 'Status', 'Last Updated'];
+
+function doGet(e) {
   const lock = LockService.getScriptLock();
   lock.tryLock(10000);
   try {
-     // Mock logic for brevity in this display, real logic in previous version
-     return ContentService.createTextOutput(JSON.stringify({status: 'success'})).setMimeType(ContentService.MimeType.JSON);
-  } catch(e) { return ContentService.createTextOutput(JSON.stringify({status:'error'})).setMimeType(ContentService.MimeType.JSON); }
-  finally { lock.releaseLock(); }
+    const sheet = getOrCreateSheet();
+    const data = sheet.getDataRange().getValues();
+    const rows = data.slice(1);
+    const transactions = rows.map(row => ({
+      id: String(row[0]),
+      date: formatDateISO(row[1]),
+      amount: Number(row[2]),
+      type: row[3],
+      category: row[4],
+      description: row[5],
+      person: row[6] ? String(row[6]) : undefined,
+      location: row[7] ? String(row[7]) : undefined,
+      paymentMethod: row[8] ? String(row[8]) : 'CASH',
+      status: row[9] || 'CONFIRMED'
+    })).filter(t => t.id && t.id !== "");
+    return createJSONOutput({ status: 'success', data: transactions });
+  } catch (err) {
+    return createJSONOutput({ status: 'error', message: err.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    const sheet = getOrCreateSheet();
+    const content = JSON.parse(e.postData.contents);
+    const action = content.action;
+    const data = content.data;
+
+    if (!data || !data.id) throw new Error("Missing data or ID");
+    
+    // Lấy toàn bộ ID để kiểm tra trùng
+    const ids = sheet.getRange("A:A").getValues().flat();
+    // Index thực tế trong mảng ids (chưa +1 cho row thực tế)
+    const existingIndex = ids.indexOf(data.id); 
+
+    // LOGIC CHỐNG TRÙNG LẶP (UPSERT)
+    // Nếu action là ADD nhưng ID đã tồn tại -> Chuyển thành UPDATE
+    if (action === 'ADD' && existingIndex !== -1) {
+       updateRow(sheet, existingIndex + 1, data);
+    } 
+    else if (action === 'ADD') {
+      sheet.appendRow([
+        data.id, data.date, data.amount, data.type, data.category, data.description,
+        data.person || '', data.location || '', data.paymentMethod || 'CASH', 
+        data.status || 'CONFIRMED', new Date()
+      ]);
+    } 
+    else if (action === 'UPDATE' && existingIndex !== -1) {
+      updateRow(sheet, existingIndex + 1, data);
+    } 
+    else if (action === 'DELETE' && existingIndex !== -1) {
+      sheet.deleteRow(existingIndex + 1);
+    }
+
+    return createJSONOutput({ status: 'success', action: action });
+  } catch (err) {
+    return createJSONOutput({ status: 'error', message: err.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateRow(sheet, rowIndex, data) {
+  const range = sheet.getRange(rowIndex, 1, 1, HEADERS.length);
+  range.setValues([[
+    data.id, data.date, data.amount, data.type, data.category, data.description,
+    data.person || '', data.location || '', data.paymentMethod || 'CASH', 
+    data.status || 'CONFIRMED', new Date()
+  ]]);
+}
+
+function getOrCreateSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow(HEADERS);
+    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function createJSONOutput(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function formatDateISO(dateInput) {
+  if (!dateInput) return "";
+  if (dateInput instanceof Date) {
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    return \`\${year}-\${month}-\${day}\`;
+  }
+  return String(dateInput);
 }
 `.trim();
 
@@ -95,7 +191,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
 
   const copyScriptCode = () => {
       navigator.clipboard.writeText(APPS_SCRIPT_CODE);
-      alert("Đã copy code vào bộ nhớ đệm!");
+      alert("Đã copy code mới! Hãy dán đè vào Google Apps Script.");
   };
 
   return (
@@ -205,7 +301,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
          <div className="space-y-3">
              <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Apps Script URL</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-2">
                   <input 
                     type="text" 
                     value={localSettings.appScriptUrl || ''}
@@ -217,6 +313,22 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSave, onDataUpda
                      Check
                   </button>
                 </div>
+                
+                {/* Apps Script Code Button */}
+                <button onClick={() => setShowScriptCode(!showScriptCode)} className="text-xs text-brand-600 font-bold underline mb-2">
+                    {showScriptCode ? 'Ẩn mã nguồn' : 'Lấy mã Script mới (Fix lỗi trùng)'}
+                </button>
+                
+                {showScriptCode && (
+                    <div className="bg-slate-900 rounded-xl p-4 text-xs font-mono text-slate-300 relative">
+                        <div className="absolute top-2 right-2">
+                            <button onClick={copyScriptCode} className="bg-brand-600 text-white px-2 py-1 rounded text-[10px] font-bold">COPY</button>
+                        </div>
+                        <pre className="overflow-x-auto whitespace-pre-wrap max-h-60">
+                            {APPS_SCRIPT_CODE}
+                        </pre>
+                    </div>
+                )}
              </div>
          </div>
       </div>

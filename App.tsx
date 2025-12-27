@@ -28,17 +28,32 @@ const App: React.FC = () => {
   // Load Data
   const loadData = () => {
     const localData = getStoredTransactions();
-    setTransactions(localData);
+    setTransactions(localData); // Hiển thị ngay dữ liệu local cho nhanh
+    
     const localSettings = getSettings();
     setUserSettings(localSettings);
     setChatHistory(getStoredChatHistory());
-    applyTheme(localSettings.themeColor || 'indigo'); // Apply immediately on load
+    applyTheme(localSettings.themeColor || 'indigo'); 
 
     if (localSettings.appScriptUrl) {
       setIsLoading(true);
       syncFromCloud(localSettings.appScriptUrl)
         .then(cloudData => {
-            if (cloudData) setTransactions(cloudData);
+            if (cloudData) {
+                setTransactions(prevLocal => {
+                    // Logic Merge thông minh để tránh mất dữ liệu chưa sync và tránh trùng lặp
+                    
+                    // 1. Lấy danh sách ID của dữ liệu trên mây
+                    const cloudIds = new Set(cloudData.map(t => t.id));
+                    
+                    // 2. Giữ lại những giao dịch ở Local MÀ CHƯA CÓ trên Cloud (tức là chưa sync hoặc mới tạo)
+                    // Điều kiện: isSynced = false HOẶC id đó không tồn tại trên cloud
+                    const unsyncedLocal = prevLocal.filter(t => !t.isSynced && !cloudIds.has(t.id));
+                    
+                    // 3. Kết hợp: Dữ liệu Mây (Mới nhất) + Dữ liệu Local chưa kịp đẩy lên
+                    return [...cloudData, ...unsyncedLocal];
+                });
+            }
         })
         .finally(() => setIsLoading(false));
     }
@@ -51,12 +66,20 @@ const App: React.FC = () => {
   // Offline Sync Logic
   const syncOfflineTransactions = async () => {
       if (!settings.appScriptUrl || !navigator.onLine) return;
+      
+      // Chỉ lấy những cái chưa sync
       const unsynced = transactions.filter(t => t.isSynced === false);
       if (unsynced.length === 0) return;
 
       console.log(`Syncing ${unsynced.length} offline transactions...`);
-      for (const t of unsynced) {
+      
+      // Copy mảng để tránh race condition khi render
+      const itemsToSync = [...unsynced];
+
+      for (const t of itemsToSync) {
+          // Gửi lên Cloud. Lưu ý: Backend Apps Script mới sẽ tự xử lý nếu trùng ID (sẽ update thay vì add mới)
           const success = await syncToCloud(settings.appScriptUrl, t, 'ADD');
+          
           if (success) {
               setTransactions(prev => prev.map(pt => pt.id === t.id ? { ...pt, isSynced: true } : pt));
           }
@@ -65,15 +88,18 @@ const App: React.FC = () => {
 
   // Trigger sync when coming online
   useEffect(() => {
-      window.addEventListener('online', syncOfflineTransactions);
+      const handleOnline = () => syncOfflineTransactions();
+      window.addEventListener('online', handleOnline);
+      
+      // Chạy sync ngay khi app mở nếu có mạng
       if(navigator.onLine) syncOfflineTransactions();
-      return () => window.removeEventListener('online', syncOfflineTransactions);
-  }, [settings.appScriptUrl, transactions]);
+      
+      return () => window.removeEventListener('online', handleOnline);
+  }, [settings.appScriptUrl, transactions]); // Dependency transactions để đảm bảo luôn check mới nhất
 
   const handleSaveSettings = (newSettings: UserSettings) => {
     setUserSettings(newSettings);
     saveSettings(newSettings);
-    // Apply theme immediately on save as well
     applyTheme(newSettings.themeColor || 'indigo');
   };
 
@@ -134,7 +160,6 @@ const App: React.FC = () => {
   };
 
   return (
-    // Sử dụng h-[100dvh] để đảm bảo chiều cao đúng trên mobile (tránh bị thanh địa chỉ che)
     <div className="flex h-[100dvh] bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} />
       
@@ -148,7 +173,6 @@ const App: React.FC = () => {
            {isLoading && <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>}
         </div>
 
-        {/* Tăng padding bottom lên 150px để đảm bảo nội dung cuối cùng vượt qua khỏi thanh menu */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar w-full" 
              style={{ paddingBottom: '150px' }}>
            <div className="max-w-4xl mx-auto h-full">
